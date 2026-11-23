@@ -1,18 +1,12 @@
 export type NodeStatus = 'IDLE' | 'WORKING' | 'COMPACTING' | 'ERROR';
 
-export type AgentRole = 'dev' | 'qa' | 'designer' | 'architect' | 'custom';
+export type EntityType = 'hub' | 'dev' | 'qa' | 'designer' | 'skill';
 
-export interface AgentSkill {
+export interface GraphEntity {
   id: string;
+  uuid: string;
   name: string;
-  description: string;
-  category: 'mobile' | 'web' | 'ui' | 'git' | 'system';
-}
-
-export interface AgentSession {
-  id: string;
-  name: string;
-  role: AgentRole;
+  type: EntityType;
   worktree: string;
   status: NodeStatus;
   statusMessage?: string;
@@ -20,20 +14,12 @@ export interface AgentSession {
   tokenMax: number;
   skills: string[];
   createdAt: string;
-  lastActiveAt: string;
+  summary: string;
 }
 
-export interface SynapticEdge {
+export interface GraphRelationship {
   id: string;
   source: string;
   target: string;
-  active: boolean;
-  pulseIntensity: number;
-}
-
-export interface GlobalDirective {
-  message: string;
-  targetMode: 'all' | 'selected';
-  targetIds: string[];
-  timestamp: string;
+  label: string;
 }

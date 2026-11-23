@@ -1,27 +1,30 @@
 import React from 'react';
-import { SidebarLeft } from './components/SidebarLeft';
-import { NeuralCanvas } from './components/NeuralCanvas';
-import { SidebarRight } from './components/SidebarRight';
+import { MirofishHeader } from './components/MirofishHeader';
+import { MirofishCanvas } from './components/MirofishCanvas';
+import { EntityLegend } from './components/EntityLegend';
+import { NodeDetailSidebar } from './components/NodeDetailSidebar';
 import { PeekTerminalModal } from './components/PeekTerminalModal';
-import { GlobalDirectiveModal } from './components/GlobalDirectiveModal';
 
 export const App: React.FC = () => {
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#090d16] text-[#f8fafc]">
-      {/* 1. Left Sidebar: Projects, History, Search */}
-      <SidebarLeft />
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#000000] text-[#f5f5f5]">
+      {/* 1. MiroFish Top Header Navigation */}
+      <MirofishHeader />
 
-      {/* 2. Center Workspace: Interactive Neural Synapse Canvas */}
-      <main className="flex-1 h-full relative flex flex-col overflow-hidden">
-        <NeuralCanvas />
-      </main>
+      {/* 2. Main Workspace (Canvas + Floating Legend + Right Detail Panel) */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Center Graph Canvas */}
+        <main className="flex-1 h-full relative overflow-hidden">
+          <MirofishCanvas />
+          <EntityLegend />
+        </main>
 
-      {/* 3. Right Sidebar: Inspector, Batch Skills, Memory Compact Controls */}
-      <SidebarRight />
+        {/* Right Sidebar: MiroFish Node Details (노드 상세) */}
+        <NodeDetailSidebar />
+      </div>
 
-      {/* Interactive Overlays */}
+      {/* Floating Peek Terminal Modal */}
       <PeekTerminalModal />
-      <GlobalDirectiveModal />
     </div>
   );
 };
