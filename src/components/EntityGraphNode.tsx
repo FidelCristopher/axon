@@ -3,14 +3,14 @@ import { Handle, Position } from '@xyflow/react';
 import type { GraphEntity } from '../types/axon';
 import { ENTITY_TYPE_CONFIGS } from '../store/axonStore';
 
-interface MirofishNodeProps {
+interface EntityGraphNodeProps {
   data: {
     entity: GraphEntity;
     isSelected: boolean;
   };
 }
 
-export const MirofishNode: React.FC<MirofishNodeProps> = memo(({ data }) => {
+export const EntityGraphNode: React.FC<EntityGraphNodeProps> = memo(({ data }) => {
   const { entity, isSelected } = data;
   const config = ENTITY_TYPE_CONFIGS.find((c) => c.type === entity.type);
   const nodeColor = config ? config.color : '#ea580c';
@@ -26,7 +26,7 @@ export const MirofishNode: React.FC<MirofishNodeProps> = memo(({ data }) => {
         className="!w-1.5 !h-1.5 !bg-transparent !border-none"
       />
 
-      {/* MiroFish Solid Dot Node */}
+      {/* Solid Dot Node */}
       <div className="relative flex items-center justify-center">
         {/* Pulsing ring if WORKING or SELECTED */}
         {isSelected && (
@@ -56,7 +56,7 @@ export const MirofishNode: React.FC<MirofishNodeProps> = memo(({ data }) => {
         />
       </div>
 
-      {/* Node Label (Text beside or below dot like MiroFish) */}
+      {/* Node Label beside dot */}
       <div className="ml-2 flex flex-col">
         <span
           className={`text-[11px] font-medium leading-none tracking-tight transition-colors whitespace-nowrap ${

@@ -8,13 +8,13 @@ import {
 import type { Node, Edge, NodeTypes } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useAxonStore } from '../store/axonStore';
-import { MirofishNode } from './MirofishNode';
+import { EntityGraphNode } from './EntityGraphNode';
 
 const nodeTypes: NodeTypes = {
-  mirofishNode: MirofishNode,
+  entityGraphNode: EntityGraphNode,
 };
 
-export const MirofishCanvas: React.FC = () => {
+export const EntityGraphCanvas: React.FC = () => {
   const { 
     entities, 
     relationships, 
@@ -27,7 +27,7 @@ export const MirofishCanvas: React.FC = () => {
     const generatedNodes: Node[] = [];
     const generatedEdges: Edge[] = [];
 
-    // Arrange nodes organically in a MiroFish constellation / entity graph layout
+    // Dense organic constellation layout
     const total = entities.length;
     const centerX = 520;
     const centerY = 340;
@@ -40,10 +40,8 @@ export const MirofishCanvas: React.FC = () => {
         x = centerX;
         y = centerY;
       } else {
-        // Spiral / radial cluster distribution similar to MiroFish
         const angle = ((index - 1) / (total - 1)) * 2 * Math.PI;
         const radius = index % 2 === 0 ? 240 : 340;
-        // Introduce small jitter for organic graph look
         const jitterX = Math.sin(index * 3) * 40;
         const jitterY = Math.cos(index * 2) * 40;
         x = centerX + Math.cos(angle) * radius + jitterX;
@@ -52,7 +50,7 @@ export const MirofishCanvas: React.FC = () => {
 
       generatedNodes.push({
         id: entity.id,
-        type: 'mirofishNode',
+        type: 'entityGraphNode',
         position: { x, y },
         data: {
           entity,
@@ -62,7 +60,7 @@ export const MirofishCanvas: React.FC = () => {
       });
     });
 
-    // Generate edges with MiroFish radiant crimson highlight for selected entity
+    // Radiant crimson highlight edges for selected entity
     relationships.forEach((rel) => {
       const isConnectedToSelected =
         rel.source === selectedEntityId || rel.target === selectedEntityId;
@@ -119,14 +117,14 @@ export const MirofishCanvas: React.FC = () => {
         maxZoom={2.0}
         proOptions={{ hideAttribution: true }}
       >
-        {/* Subtle MiroFish dot matrix background */}
+        {/* Pitch black dot matrix background */}
         <Background color="#161616" gap={20} size={1} />
         <Controls
           className="!bg-[#0a0a0a] !border-[#222222] !rounded-md !shadow-2xl [&>button]:!bg-[#0a0a0a] [&>button]:!border-[#222222] [&>button]:!text-[#888888] hover:[&>button]:!text-[#ffffff]"
         />
       </ReactFlow>
 
-      {/* Top Left Graph Title from MiroFish */}
+      {/* Top Left Graph Title */}
       <div className="absolute top-5 left-6 pointer-events-none">
         <h2 className="text-sm font-semibold tracking-tight text-[#f5f5f5]">
           Graph Relationship Visualization

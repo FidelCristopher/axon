@@ -207,7 +207,7 @@ export const useAxonStore = create<AxonState>((set, get) => ({
       tokenMax: 1000000,
       skills: ['antislop-ui'],
       createdAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
-      summary: 'Dynamic entity branch created in MiroFish relationship graph.',
+      summary: 'Dynamic entity branch created in graph relationship network.',
     };
 
     const newRel: GraphRelationship = {

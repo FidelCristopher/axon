@@ -2,10 +2,10 @@
 
 :root {
   --background: #000000;
-  --surface: #0a0a0a;
-  --surface-hover: #141414;
-  --border: #1f1f1f;
-  --border-active: #333333;
+  --surface: #080808;
+  --surface-hover: #121212;
+  --border: #1a1a1a;
+  --border-active: #2b2b2b;
   --accent-crimson: #e11d48;
   --text-main: #f5f5f5;
   --text-muted: #888888;
@@ -23,8 +23,8 @@ body {
 
 /* Custom Scrollbar for Pure Black Theme */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -32,24 +32,24 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1f1f1f;
+  background: #1a1a1a;
   border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #333333;
+  background: #2b2b2b;
 }
 
-/* Mirofish Active Edge Radiant Glow */
+/* Active Edge Radiant Highlight */
 .edge-radiant-active {
   stroke: #e11d48 !important;
-  stroke-width: 2px !important;
+  stroke-width: 2.2px !important;
   opacity: 1 !important;
-  filter: drop-shadow(0 0 4px rgba(225, 29, 72, 0.6));
+  filter: drop-shadow(0 0 5px rgba(225, 29, 72, 0.7));
 }
 
 .edge-inactive {
-  stroke: #262626 !important;
-  stroke-width: 1px !important;
+  stroke: #1f1f1f !important;
+  stroke-width: 0.9px !important;
   opacity: 0.45 !important;
 }

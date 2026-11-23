@@ -2,7 +2,7 @@ import React from 'react';
 import { useAxonStore } from '../store/axonStore';
 import { RotateCcw, Maximize, ToggleLeft, ToggleRight } from 'lucide-react';
 
-export const MirofishHeader: React.FC = () => {
+export const EntityGraphHeader: React.FC = () => {
   const { 
     activeViewTab, 
     setActiveViewTab, 
@@ -20,13 +20,13 @@ export const MirofishHeader: React.FC = () => {
 
   return (
     <header className="h-14 bg-[#000000] border-b border-[#1a1a1a] px-6 flex items-center justify-between select-none z-20">
-      {/* MiroFish Style Brand Title */}
+      {/* Brand Title */}
       <div className="flex items-center space-x-3">
         <h1 className="text-base font-black tracking-widest text-[#f5f5f5] uppercase font-mono">
           AXON
         </h1>
         <span className="text-[10px] font-mono text-[#555555] px-2 py-0.5 border border-[#222222] rounded bg-[#0a0a0a]">
-          MiroFish Graph v1.0
+          Relationship Graph v1.0
         </span>
       </div>
 

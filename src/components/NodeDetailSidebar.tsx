@@ -56,7 +56,7 @@ export const NodeDetailSidebar: React.FC = () => {
 
   return (
     <aside className="w-96 bg-[#0a0a0a] border-l border-[#1a1a1a] flex flex-col h-full select-none text-xs z-10">
-      {/* MiroFish Style Right Sidebar Header: Node Details / 노드 상세 */}
+      {/* Node Details Header */}
       <div className="p-4 border-b border-[#1a1a1a] flex items-center justify-between bg-[#000000]">
         <div className="flex items-center space-x-2">
           <span className="font-semibold text-sm tracking-tight text-[#ffffff]">
@@ -146,12 +146,12 @@ export const NodeDetailSidebar: React.FC = () => {
         </form>
       )}
 
-      {/* MiroFish Fields Layout */}
+      {/* Fields Layout */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Name / 이름 */}
+        {/* Name */}
         <div>
           <div className="text-[10px] font-mono text-[#666666] uppercase mb-1">
-            Name (이름)
+            Name
           </div>
           <div className="text-sm font-bold text-[#ffffff] tracking-tight">
             {entity.name}
@@ -180,11 +180,11 @@ export const NodeDetailSidebar: React.FC = () => {
           </div>
         </div>
 
-        {/* Created Date / 생성일 */}
+        {/* Created Date */}
         <div>
           <div className="text-[10px] font-mono text-[#666666] uppercase mb-1 flex items-center space-x-1">
             <Clock className="w-3 h-3 text-[#555555]" />
-            <span>Created (생성일)</span>
+            <span>Created</span>
           </div>
           <div className="font-mono text-xs text-[#888888]">
             {entity.createdAt}
@@ -208,11 +208,11 @@ export const NodeDetailSidebar: React.FC = () => {
           </div>
         </div>
 
-        {/* Properties / Attached Skills (속성) */}
+        {/* Properties / Attached Skills */}
         <div>
           <div className="text-[10px] font-mono text-[#666666] uppercase mb-1.5 flex items-center space-x-1">
             <Layers className="w-3 h-3 text-[#555555]" />
-            <span>Properties / Skills (속성)</span>
+            <span>Properties / Skills</span>
           </div>
           {entity.skills.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
@@ -230,10 +230,10 @@ export const NodeDetailSidebar: React.FC = () => {
           )}
         </div>
 
-        {/* Summary (요약) */}
+        {/* Summary */}
         <div>
           <div className="text-[10px] font-mono text-[#666666] uppercase mb-1">
-            Summary (요약)
+            Summary
           </div>
           <p className="text-xs text-[#aaaaaa] leading-relaxed bg-[#000000] p-3 rounded border border-[#1f1f1f]">
             {entity.summary}
