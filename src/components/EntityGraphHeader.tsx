@@ -20,10 +20,21 @@ export const EntityGraphHeader: React.FC = () => {
         <h1 className="text-base font-black tracking-widest text-[#0f172a] uppercase font-mono">
           AXON
         </h1>
-        <span className="text-[#cbd5e1] font-mono text-xs">/</span>
-        <span className="text-xs font-bold text-[#e11d48] font-mono bg-[#e11d48]/10 px-2.5 py-0.5 rounded border border-[#e11d48]/20 truncate max-w-[320px]">
-          {projectName}
-        </span>
+        {projectName ? (
+          <>
+            <span className="text-[#cbd5e1] font-mono text-xs">/</span>
+            <span className="text-xs font-bold text-[#e11d48] font-mono bg-[#e11d48]/10 px-2.5 py-0.5 rounded border border-[#e11d48]/20 truncate max-w-[320px]">
+              {projectName}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="text-[#cbd5e1] font-mono text-xs">/</span>
+            <span className="text-xs font-medium text-[#94a3b8] font-mono">
+              [Standby • Select a Session]
+            </span>
+          </>
+        )}
       </div>
 
       {/* Controls: Refresh & Fullscreen */}

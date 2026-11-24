@@ -221,12 +221,12 @@ export const useAxonStore = create<AxonState>((set, get) => {
   };
 
   return {
-    activeProjectId: defaultProj.id,
-    projectName: defaultProj.name,
-    entities: defaultProj.entities,
-    relationships: defaultProj.relationships,
-    selectedEntityId: defaultProj.entities[0].id,
-    selectedSessionIds: ['node-dev-1', 'node-dev-2'],
+    activeProjectId: '',
+    projectName: '',
+    entities: [],
+    relationships: [],
+    selectedEntityId: '',
+    selectedSessionIds: [],
     activeViewTab: 'graph',
     isTerminalModalOpen: false,
     sessionTopologies: initialTopologies,

@@ -9,6 +9,7 @@ import type { Node, Edge, NodeTypes } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useAxonStore } from '../store/axonStore';
 import { EntityGraphNode } from './EntityGraphNode';
+import { Layers } from 'lucide-react';
 
 const nodeTypes: NodeTypes = {
   entityGraphNode: EntityGraphNode,
@@ -89,6 +90,21 @@ export const EntityGraphCanvas: React.FC = () => {
 
   return (
     <div className="flex-1 h-full bg-[#ffffff] relative select-none">
+      {/* Clean Standby State when No Session is Selected on Initial Load / Refresh */}
+      {entities.length === 0 && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none z-10">
+          <div className="flex flex-col items-center space-y-2.5 text-center p-6 rounded-xl border border-dashed border-[#cbd5e1] bg-[#ffffff]/90 backdrop-blur-xs max-w-sm shadow-xs animate-in fade-in duration-200">
+            <div className="w-10 h-10 rounded-full bg-[#f1f5f9] flex items-center justify-center border border-[#e2e8f0]">
+              <Layers className="w-5 h-5 text-[#94a3b8]" />
+            </div>
+            <div className="text-xs font-bold text-[#0f172a] font-mono">No Session Active</div>
+            <p className="text-[11px] text-[#64748b] font-mono leading-relaxed">
+              Select any session from the left sidebar to render its real topology, or click <span className="font-bold text-[#e11d48]">+</span> to create a new session.
+            </p>
+          </div>
+        </div>
+      )}
+
       <ReactFlow
         nodes={nodes}
         edges={edges}

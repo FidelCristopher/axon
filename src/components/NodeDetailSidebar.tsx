@@ -250,8 +250,16 @@ export const NodeDetailSidebar: React.FC = () => {
           </button>
         </div>
 
-        {entities.map((session) => {
-          const isSelected = selectedSessionIds.includes(session.id);
+        {entities.length === 0 ? (
+          <div className="py-10 px-4 text-center rounded-lg border border-dashed border-[#cbd5e1] bg-[#ffffff] space-y-1.5 my-2">
+            <div className="text-xs font-bold text-[#0f172a] font-mono">No Active Session</div>
+            <p className="text-[11px] font-mono text-[#64748b] leading-relaxed">
+              Select any session from the left sidebar to inspect its branch panels and inject skills.
+            </p>
+          </div>
+        ) : (
+          entities.map((session) => {
+            const isSelected = selectedSessionIds.includes(session.id);
           const isFocusedInGraph = selectedEntityId === session.id;
           const isWorking = session.status === 'WORKING';
           const isCompacting = session.status === 'COMPACTING';
@@ -414,7 +422,7 @@ export const NodeDetailSidebar: React.FC = () => {
               </div>
             </div>
           );
-        })}
+        }))}
       </div>
 
       {/* 4. Truly Flexible Dynamic Skill & GitHub Repo Injector */}

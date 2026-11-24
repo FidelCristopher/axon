@@ -54,7 +54,7 @@ export const EntitySidebarLeft: React.FC = () => {
   });
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSessionFile, setSelectedSessionFile] = useState<string>(sessions[0]?.id || '');
+  const [selectedSessionFile, setSelectedSessionFile] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newSessionTitle, setNewSessionTitle] = useState('');
 
