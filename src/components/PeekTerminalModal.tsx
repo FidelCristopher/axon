@@ -376,29 +376,32 @@ export const PeekTerminalModal: React.FC = () => {
     setVisibleCount(80);
     const targetLookup = entity.uuid || entity.id;
 
-    fetch(`/api/session-history?id=${encodeURIComponent(targetLookup)}`)
-      .then((res) => {
+    const loadHistory = async () => {
+      try {
+        let res = await fetch(`http://127.0.0.1:1425/api/session-history?id=${encodeURIComponent(targetLookup)}`).catch(() => null);
+        if (!res || !res.ok) {
+          res = await fetch(`/api/session-history?id=${encodeURIComponent(targetLookup)}`);
+        }
         if (!res.ok) throw new Error('Session history not found');
-        return res.json();
-      })
-      .then((data) => {
+        const data = await res.json();
         if (data && Array.isArray(data.messages)) {
           setChatMessages(data.messages);
         } else {
           setChatMessages([]);
         }
-      })
-      .catch(() => {
+      } catch {
         setChatMessages([]);
-      })
-      .finally(() => {
+      } finally {
         setIsLoadingHistory(false);
-      });
+      }
+    };
+
+    loadHistory();
   }, [entity?.id, entity?.uuid, isTerminalModalOpen]);
 
   // Connect to SSE stream from native Pi Bridge for real-time telemetry streaming
   useEffect(() => {
-    const sse = new EventSource('http://localhost:1425/api/stream');
+    const sse = new EventSource('http://127.0.0.1:1425/api/stream');
 
     sse.onmessage = (e) => {
       try {
@@ -467,6 +470,18 @@ export const PeekTerminalModal: React.FC = () => {
           });
         } else if (data.type === 'agent_end' && data.nodeId === selectedEntityId) {
           updateEntityStatus(selectedEntityId, 'IDLE', 'Task complete. State settled to IDLE.');
+          setIsSending(false);
+        } else if (data.type === 'agent_error' && data.nodeId === selectedEntityId) {
+          setChatMessages((prev) => [
+            ...prev,
+            {
+              id: `err-${Date.now()}`,
+              role: 'system_notice',
+              text: `Pi Agent Error: ${data.error || 'Unknown error'}`,
+              timestamp: Date.now(),
+            },
+          ]);
+          updateEntityStatus(selectedEntityId, 'IDLE', 'Error executing prompt');
           setIsSending(false);
         }
       } catch {}
@@ -555,8 +570,8 @@ export const PeekTerminalModal: React.FC = () => {
 
   if (!isTerminalModalOpen || !entity) return null;
 
-  // Set to true to connect to live Pi bridge, or false for safe UI sandbox development mode
-  const IS_LIVE_BRIDGE_ACTIVE = false;
+  // Live Pi Native Bridge enabled (connects to http://127.0.0.1:1425)
+  const IS_LIVE_BRIDGE_ACTIVE = true;
 
   const handleSelectSlashItem = (item: SlashCommandItem) => {
     const needsArg =
@@ -695,14 +710,16 @@ export const PeekTerminalModal: React.FC = () => {
 
     if (IS_LIVE_BRIDGE_ACTIVE) {
       try {
-        const res = await fetch('http://localhost:1425/api/prompt', {
+        const res = await fetch('http://127.0.0.1:1425/api/prompt', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             nodeId: entity.id,
+            sessionId: entity.uuid || entity.id,
             cwd: targetCwd,
             prompt: promptText,
-            images: imagesToAttach.map((i) => i.base64),
+            thinkingLevel,
+            images: imagesToAttach.map((i) => i.base64).filter(Boolean),
           }),
         });
 
@@ -759,7 +776,7 @@ export const PeekTerminalModal: React.FC = () => {
     ]);
 
     try {
-      await fetch('http://localhost:1425/api/compact', {
+      await fetch('http://127.0.0.1:1425/api/compact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nodeId: entity.id }),

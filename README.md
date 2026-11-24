@@ -1,4 +1,8 @@
-# AXON STUDIO
+<p align="center">
+  <img src="assets/axon-logo.png" alt="Axon Studio Logo" width="120" />
+</p>
+
+<h1 align="center">AXON STUDIO</h1>
 
 > Neural Synapse Workspace for Multi-Agent Coding Orchestration.
 
