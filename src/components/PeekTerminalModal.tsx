@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAxonStore } from '../store/axonStore';
-import { X, Scissors, Send, GitBranch, MessageSquare, Terminal, Wrench } from 'lucide-react';
+import { X, Scissors, Send, GitBranch, MessageSquare, Terminal, Wrench, Image as ImageIcon } from 'lucide-react';
+
+export interface AttachedImage {
+  id: string;
+  name: string;
+  size: number;
+  previewUrl: string;
+  base64?: string;
+  file?: File;
+}
 
 export const PeekTerminalModal: React.FC = () => {
   const { 
@@ -22,6 +31,11 @@ export const PeekTerminalModal: React.FC = () => {
   const [modalView, setModalView] = useState<'chat' | 'console'>('chat');
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Multimodal Image Attachment States (Drag & Drop, Paste, File Input)
+  const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const entity = entities.find((e) => e.id === selectedEntityId);
 
@@ -125,6 +139,77 @@ export const PeekTerminalModal: React.FC = () => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [terminalLogs]);
 
+  // Multimodal Image Helper Functions
+  const processImageFiles = (files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+
+    // Cap at 10 images to prevent payload explosion
+    const remainingSlots = Math.max(0, 10 - attachedImages.length);
+    const accepted = imageFiles.slice(0, remainingSlots);
+
+    accepted.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        setAttachedImages((prev) => [
+          ...prev,
+          {
+            id: `img-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            name: file.name || `Pasted_Image_${new Date().toLocaleTimeString().replace(/:/g, '-')}.png`,
+            size: file.size,
+            previewUrl: result,
+            base64: result,
+            file,
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Clipboard Paste Handler (Ctrl + V from Snipping Tool or Browser)
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      processImageFiles(imageFiles);
+    }
+  };
+
+  // Drag and Drop Handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDraggingOver) setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    if (e.dataTransfer?.files) {
+      processImageFiles(e.dataTransfer.files);
+    }
+  };
+
   if (!isTerminalModalOpen || !entity) return null;
 
   // Set to true to connect to live Pi bridge, or false for safe UI sandbox development mode
@@ -132,18 +217,23 @@ export const PeekTerminalModal: React.FC = () => {
 
   const handleSendPrompt = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputPrompt.trim() || isSending) return;
+    if ((!inputPrompt.trim() && attachedImages.length === 0) || isSending) return;
 
     const promptText = inputPrompt.trim();
+    const imagesToAttach = [...attachedImages];
+
     setInputPrompt('');
+    setAttachedImages([]);
     setIsSending(true);
 
     const targetCwd = resolveCwd(entity);
 
+    const attachLabel = imagesToAttach.length > 0 ? ` [Attached: ${imagesToAttach.length} image(s)]` : '';
+
     // Append user input
     setTerminalLogs((prev) => [
       ...prev,
-      `> User: ${promptText}`,
+      `> User: ${promptText || '(Image attachment)'}${attachLabel}`,
       `[sandbox mode active: 0 tokens consumed] Workspace: ${targetCwd}`,
     ]);
 
@@ -211,7 +301,24 @@ export const PeekTerminalModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs select-none">
-      <div className="w-[780px] max-w-[94vw] h-[540px] bg-[#ffffff] border border-[#cbd5e1] rounded-lg shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div 
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onPaste={handlePaste}
+        className="w-[820px] max-w-[94vw] h-[560px] bg-[#ffffff] border border-[#cbd5e1] rounded-lg shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 relative"
+      >
+        {/* Drag and Drop Image Dropzone Overlay */}
+        {isDraggingOver && (
+          <div className="absolute inset-0 bg-[#0f172a]/85 backdrop-blur-xs z-50 flex flex-col items-center justify-center border-2 border-dashed border-[#e11d48] text-white space-y-2 pointer-events-none animate-in fade-in duration-150">
+            <div className="w-12 h-12 rounded-full bg-[#e11d48]/20 flex items-center justify-center border border-[#e11d48]/50">
+              <ImageIcon className="w-6 h-6 text-[#e11d48]" />
+            </div>
+            <div className="text-xs font-bold font-mono">Drop Image(s) Here to Attach</div>
+            <div className="text-[10px] text-[#94a3b8] font-mono">PNG, JPG, WebP, GIF supported (Auto-staged)</div>
+          </div>
+        )}
+
         {/* Terminal Header */}
         <div className="px-4 py-3 bg-[#f8fafc] border-b border-[#e2e8f0] flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
@@ -382,15 +489,64 @@ export const PeekTerminalModal: React.FC = () => {
           </div>
         )}
 
-        {/* Input Bar */}
-        <form onSubmit={handleSendPrompt} className="p-3 bg-[#ffffff] border-t border-[#e2e8f0] flex items-center space-x-2">
-          <div className="text-[#e11d48] font-mono text-xs font-bold pl-1">&gt;</div>
+        {/* Attached Images Preview Strip */}
+        {attachedImages.length > 0 && (
+          <div className="px-3 py-2 bg-[#f8fafc] border-t border-[#e2e8f0] flex items-center space-x-2 overflow-x-auto">
+            <span className="text-[10px] font-mono text-[#64748b] shrink-0 font-semibold">
+              Attached ({attachedImages.length}/10):
+            </span>
+            <div className="flex items-center space-x-2">
+              {attachedImages.map((img) => (
+                <div
+                  key={img.id}
+                  className="relative group shrink-0 w-11 h-11 rounded-md border border-[#cbd5e1] overflow-hidden bg-white shadow-xs"
+                >
+                  <img src={img.previewUrl} alt={img.name} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setAttachedImages((prev) => prev.filter((i) => i.id !== img.id))}
+                    className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[#0f172a]/80 hover:bg-[#ef4444] text-white flex items-center justify-center transition-colors shadow-xs"
+                    title="Remove image"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Hidden File Picker Input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files) processImageFiles(e.target.files);
+            e.target.value = '';
+          }}
+        />
+
+        {/* Input Bar with Insert Image Button */}
+        <form onSubmit={handleSendPrompt} className="p-2.5 bg-[#ffffff] border-t border-[#e2e8f0] flex items-center space-x-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="p-1.5 rounded-md hover:bg-[#f1f5f9] text-[#64748b] hover:text-[#e11d48] border border-[#cbd5e1] transition-colors shrink-0"
+            title="Insert / Attach Image (or paste from clipboard / drag & drop)"
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+          </button>
+
+          <div className="text-[#e11d48] font-mono text-xs font-bold">&gt;</div>
           <input
             type="text"
             placeholder={
               isSending
                 ? `Executing prompt in ${resolveCwd(entity)}...`
-                : `Send prompt directly to ${entity.name}... (Native Pi Engine)`
+                : `Send prompt or paste image to ${entity.name}... (Ctrl+V / Drag & Drop)`
             }
             value={inputPrompt}
             disabled={isSending}
@@ -400,8 +556,8 @@ export const PeekTerminalModal: React.FC = () => {
           />
           <button
             type="submit"
-            disabled={!inputPrompt.trim() || isSending}
-            className="px-3.5 py-1.5 rounded-md bg-[#e11d48] hover:bg-[#be123c] text-xs font-bold text-[#ffffff] disabled:opacity-40 shadow-xs flex items-center space-x-1 font-mono"
+            disabled={(!inputPrompt.trim() && attachedImages.length === 0) || isSending}
+            className="px-3.5 py-1.5 rounded-md bg-[#e11d48] hover:bg-[#be123c] text-xs font-bold text-[#ffffff] disabled:opacity-40 shadow-xs flex items-center space-x-1 font-mono shrink-0"
           >
             <Send className="w-3 h-3" />
             <span>{isSending ? 'Running...' : 'Send'}</span>
