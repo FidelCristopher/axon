@@ -94,6 +94,9 @@ export const PeekTerminalModal: React.FC = () => {
 
   if (!isTerminalModalOpen || !entity) return null;
 
+  // Set to true to connect to live Pi bridge, or false for safe UI sandbox development mode
+  const IS_LIVE_BRIDGE_ACTIVE = false;
+
   const handleSendPrompt = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputPrompt.trim() || isSending) return;
@@ -108,32 +111,47 @@ export const PeekTerminalModal: React.FC = () => {
     setTerminalLogs((prev) => [
       ...prev,
       `> User: ${promptText}`,
-      `[dispatching to local Pi session in ${targetCwd}]...`,
+      `[sandbox mode active: 0 tokens consumed] Workspace: ${targetCwd}`,
     ]);
 
     updateEntityStatus(entity.id, 'WORKING', `Executing: "${promptText.slice(0, 32)}..."`);
 
-    try {
-      const res = await fetch('http://localhost:1425/api/prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nodeId: entity.id,
-          cwd: targetCwd,
-          prompt: promptText,
-        }),
-      });
+    if (IS_LIVE_BRIDGE_ACTIVE) {
+      try {
+        const res = await fetch('http://localhost:1425/api/prompt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nodeId: entity.id,
+            cwd: targetCwd,
+            prompt: promptText,
+          }),
+        });
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+      } catch (err: any) {
+        setTerminalLogs((prev) => [
+          ...prev,
+          `[error]: Failed to connect to native Pi Bridge: ${err.message}`,
+        ]);
+        setIsSending(false);
+        updateEntityStatus(entity.id, 'IDLE', 'Error executing prompt');
       }
-    } catch (err: any) {
-      setTerminalLogs((prev) => [
-        ...prev,
-        `[error]: Failed to connect to native Pi Bridge: ${err.message}`,
-      ]);
-      setIsSending(false);
-      updateEntityStatus(entity.id, 'IDLE', 'Error executing prompt');
+    } else {
+      // Safe UI development simulation: zero tokens, instant UI feedback
+      setTimeout(() => {
+        setTerminalLogs((prev) => [
+          ...prev,
+          `[tool_call]: read (${targetCwd}/build.gradle.kts)`,
+          `[tool_result]: Workspace verified cleanly.`,
+          `[assistant]: Perintah "${promptText}" diterima di UI sandbox. Menunggu pembukaan kunci integrasi.`,
+          `[agent_end]: Turn selesai. Status kembali ke IDLE.`,
+        ]);
+        updateEntityStatus(entity.id, 'IDLE', 'Task finished cleanly (Sandbox)');
+        setIsSending(false);
+      }, 1500);
     }
   };
 
