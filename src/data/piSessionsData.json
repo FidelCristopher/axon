@@ -1,0 +1,732 @@
+[
+  {
+    "id": "2026-11-03T17-21-01-229Z_01a1a26d-b52c-7619-a47a-ab4823085aa3",
+    "fileName": "2026-11-03T17-21-01-229Z_01a1a26d-b52c-7619-a47a-ab4823085aa3.jsonl",
+    "name": "panel",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 238231,
+    "size": 13023928,
+    "updatedAt": 1795480729382.914
+  },
+  {
+    "id": "2026-11-22T01-44-10-588Z_01a200ec-d45b-70fb-acaf-ddd96f83290a",
+    "fileName": "2026-11-22T01-44-10-588Z_01a200ec-d45b-70fb-acaf-ddd96f83290a.jsonl",
+    "name": "assessment-dl",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 217268,
+    "size": 2097819,
+    "updatedAt": 1795436755294.852
+  },
+  {
+    "id": "2026-11-22T15-03-20-342Z_01a203c8-7c15-7624-a142-a1da40b3586b",
+    "fileName": "2026-11-22T15-03-20-342Z_01a203c8-7c15-7624-a142-a1da40b3586b.jsonl",
+    "name": "banner-matchatcih",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 68133,
+    "size": 4360251,
+    "updatedAt": 1795436745142.8535
+  },
+  {
+    "id": "2026-09-22T07-27-54-520Z_01a0c803-9a97-747e-9c38-70431854b526",
+    "fileName": "2026-09-22T07-27-54-520Z_01a0c803-9a97-747e-9c38-70431854b526.jsonl",
+    "name": "matcha-simulation",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 163407,
+    "size": 31885071,
+    "updatedAt": 1795402450109.4048
+  },
+  {
+    "id": "2026-09-21T22-17-35-343Z_01a0c60b-c56f-733e-aefd-51f587fa2432",
+    "fileName": "2026-09-21T22-17-35-343Z_01a0c60b-c56f-733e-aefd-51f587fa2432.jsonl",
+    "name": "amora",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 110110,
+    "size": 454329,
+    "updatedAt": 1795338610645.2617
+  },
+  {
+    "id": "2026-11-15T00-19-33-441Z_01a1dc92-d7c1-74d3-9660-4dfa0a04dd4e",
+    "fileName": "2026-11-15T00-19-33-441Z_01a1dc92-d7c1-74d3-9660-4dfa0a04dd4e.jsonl",
+    "name": "epub_translator",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 339967,
+    "size": 5200058,
+    "updatedAt": 1795320695928.5085
+  },
+  {
+    "id": "2026-10-24T13-43-24-586Z_01a16e26-e2aa-73e3-b36f-b3c8e632c75f",
+    "fileName": "2026-10-24T13-43-24-586Z_01a16e26-e2aa-73e3-b36f-b3c8e632c75f.jsonl",
+    "name": "NihaoHanzi",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 352144,
+    "size": 181607056,
+    "updatedAt": 1795158094671.6338
+  },
+  {
+    "id": "2026-11-12T05-28-49-385Z_role-panel-dev",
+    "fileName": "2026-11-12T05-28-49-385Z_role-panel-dev.jsonl",
+    "name": "panel",
+    "category": "HaloHanzi Part 1",
+    "role": "",
+    "tokens": 682320,
+    "size": 28123990,
+    "updatedAt": 1795157739431.7478
+  },
+  {
+    "id": "2026-11-13T01-39-44-250Z_role-panel-designer",
+    "fileName": "2026-11-13T01-39-44-250Z_role-panel-designer.jsonl",
+    "name": "panel",
+    "category": "HaloHanzi Assets",
+    "role": "",
+    "tokens": 388985,
+    "size": 19261144,
+    "updatedAt": 1795157578039.7961
+  },
+  {
+    "id": "2026-11-19T22-11-07-761Z_01a1f5dd-0f71-75bd-9ac9-be4893dcedb2",
+    "fileName": "2026-11-19T22-11-07-761Z_01a1f5dd-0f71-75bd-9ac9-be4893dcedb2.jsonl",
+    "name": "coba periksa kode di cerita page, sepertinya ada bug, ke",
+    "category": "HaloHanzi Part 2",
+    "role": "",
+    "tokens": 115003,
+    "size": 663374,
+    "updatedAt": 1795130778068.2163
+  },
+  {
+    "id": "2026-11-19T08-08-08-412Z_01a1f2d9-47d8-7394-a054-71d04af785b4",
+    "fileName": "2026-11-19T08-08-08-412Z_01a1f2d9-47d8-7394-a054-71d04af785b4.jsonl",
+    "name": "Halohanzi - Role: FULLSTACK & MOBILE SOFTWARE ENGINEER",
+    "category": "HaloHanzi Part 2",
+    "role": "",
+    "tokens": 695775,
+    "size": 7066297,
+    "updatedAt": 1795125461073.8833
+  },
+  {
+    "id": "2026-11-19T08-05-27-788Z_01a1f2d6-d46c-77b3-a942-01fa25fbf6a2",
+    "fileName": "2026-11-19T08-05-27-788Z_01a1f2d6-d46c-77b3-a942-01fa25fbf6a2.jsonl",
+    "name": "saya ingin membuat server di roblox agar mendapatkan cua",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 88662,
+    "size": 377848,
+    "updatedAt": 1795095966999.1396
+  },
+  {
+    "id": "2026-11-18T09-07-42-387Z_01a1ede9-74b3-711c-aa1b-a3aebbc91f81",
+    "fileName": "2026-11-18T09-07-42-387Z_01a1ede9-74b3-711c-aa1b-a3aebbc91f81.jsonl",
+    "name": "res",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 0,
+    "size": 38872,
+    "updatedAt": 1794992867128.0706
+  },
+  {
+    "id": "2026-11-17T07-24-31-670Z_01a1e864-a235-741d-95c5-37f5bd3b7b9d",
+    "fileName": "2026-11-17T07-24-31-670Z_01a1e864-a235-741d-95c5-37f5bd3b7b9d.jsonl",
+    "name": "ini salah di mana: /mnt/c/Users/Pongo/Documents/LATIHAN-",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 58782,
+    "size": 260013,
+    "updatedAt": 1794902243583.2207
+  },
+  {
+    "id": "2026-11-17T06-28-11-339Z_01a1e831-0dcb-747c-bb33-9e2d0ec99426",
+    "fileName": "2026-11-17T06-28-11-339Z_01a1e831-0dcb-747c-bb33-9e2d0ec99426.jsonl",
+    "name": "coba periksa file pdf ini, ini adalah hackathon yang ing",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 21039,
+    "size": 95358,
+    "updatedAt": 1794898381623.966
+  },
+  {
+    "id": "2026-11-15T00-02-14-635Z_01a1dc82-fdea-7788-b650-f911d8f13741",
+    "fileName": "2026-11-15T00-02-14-635Z_01a1dc82-fdea-7788-b650-f911d8f13741.jsonl",
+    "name": "test",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 8670,
+    "size": 38892,
+    "updatedAt": 1794700945309.5967
+  },
+  {
+    "id": "2026-11-14T02-52-00-121Z_01a1d7f8-0cf9-75e1-a930-0c691c7cab30",
+    "fileName": "2026-11-14T02-52-00-121Z_01a1d7f8-0cf9-75e1-a930-0c691c7cab30.jsonl",
+    "name": "berikan saya rekomendasi movies atau series wlw seperti ",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 19552,
+    "size": 110613,
+    "updatedAt": 1794625758312.2742
+  },
+  {
+    "id": "2026-11-14T01-36-36-371Z_01a1d7b3-0612-742b-954c-8759e12daef2",
+    "fileName": "2026-11-14T01-36-36-371Z_01a1d7b3-0612-742b-954c-8759e12daef2.jsonl",
+    "name": "apa itu opencode? saya melihat, orang bisa menyambungkan",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 15597,
+    "size": 77210,
+    "updatedAt": 1794620374554.2292
+  },
+  {
+    "id": "2026-11-12T05-28-36-123Z_role-panel-designer",
+    "fileName": "2026-11-12T05-28-36-123Z_role-panel-designer.jsonl",
+    "name": "panel",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 424139,
+    "size": 3961421,
+    "updatedAt": 1794494458561.3262
+  },
+  {
+    "id": "2026-11-12T01-53-59-068Z_role-nihaohanzi-dev",
+    "fileName": "2026-11-12T01-53-59-068Z_role-nihaohanzi-dev.jsonl",
+    "name": "NihaoHanzi",
+    "category": "HaloHanzi Part 1",
+    "role": "",
+    "tokens": 718348,
+    "size": 103592046,
+    "updatedAt": 1794459237956.456
+  },
+  {
+    "id": "2026-11-12T01-39-43-559Z_role-nihaohanzi-designer",
+    "fileName": "2026-11-12T01-39-43-559Z_role-nihaohanzi-designer.jsonl",
+    "name": "NihaoHanzi",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 569910,
+    "size": 98389330,
+    "updatedAt": 1794448418854.5764
+  },
+  {
+    "id": "2026-11-11T20-13-54-989Z_01a1cc3e-dfac-7025-9419-6c55600a270f",
+    "fileName": "2026-11-11T20-13-54-989Z_01a1cc3e-dfac-7025-9419-6c55600a270f.jsonl",
+    "name": "android",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 38440,
+    "size": 695082,
+    "updatedAt": 1794428369750.4602
+  },
+  {
+    "id": "2026-11-11T20-09-12-448Z_01a1cc3a-8fff-7295-9d2b-a24449e3a69e",
+    "fileName": "2026-11-11T20-09-12-448Z_01a1cc3a-8fff-7295-9d2b-a24449e3a69e.jsonl",
+    "name": "di mana sumber website untuk cek list kosakata mandarin ",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 9291,
+    "size": 42002,
+    "updatedAt": 1794427791758.5815
+  },
+  {
+    "id": "2026-11-11T18-38-52-670Z_01a1cbe7-dcf4-721f-a1b4-5c4160b8cc1e",
+    "fileName": "2026-11-11T18-38-52-670Z_01a1cbe7-dcf4-721f-a1b4-5c4160b8cc1e.jsonl",
+    "name": "kenapa model milik gemini kalau eksekusi perintah sederh",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 74583,
+    "size": 2376179,
+    "updatedAt": 1794423675287.366
+  },
+  {
+    "id": "2026-11-05T16-51-23-877Z_01a1ac9f-4e64-71a2-b421-e6949598e05f",
+    "fileName": "2026-11-05T16-51-23-877Z_01a1ac9f-4e64-71a2-b421-e6949598e05f.jsonl",
+    "name": "lakukan scraping selengkap mungkin di internet dan juga ",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 91188,
+    "size": 429547,
+    "updatedAt": 1793899957946.8276
+  },
+  {
+    "id": "2026-09-29T22-11-53-525Z_01a0ef39-6e34-7594-9eaa-1e8798cd1547",
+    "fileName": "2026-09-29T22-11-53-525Z_01a0ef39-6e34-7594-9eaa-1e8798cd1547.jsonl",
+    "name": "portofolio",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 118374,
+    "size": 19746353,
+    "updatedAt": 1793895610036.4668
+  },
+  {
+    "id": "2026-09-21T22-26-31-532Z_01a0c613-f3ea-725e-aa81-e139331b0cad",
+    "fileName": "2026-09-21T22-26-31-532Z_01a0c613-f3ea-725e-aa81-e139331b0cad.jsonl",
+    "name": "codeforces",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 21202,
+    "size": 108470,
+    "updatedAt": 1793891652509.9392
+  },
+  {
+    "id": "2026-11-04T13-35-58-939Z_01a1a6c6-09da-7793-95ce-369cc9d8f75d",
+    "fileName": "2026-11-04T13-35-58-939Z_01a1a6c6-09da-7793-95ce-369cc9d8f75d.jsonl",
+    "name": "saya ingin mengoleksi figure marvel legends, apa kelebih",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 181876,
+    "size": 3107778,
+    "updatedAt": 1793809477859.597
+  },
+  {
+    "id": "2026-11-03T19-26-23-681Z_01a1a2e0-7dc1-71b7-865f-42c7ad1df5de",
+    "fileName": "2026-11-03T19-26-23-681Z_01a1a2e0-7dc1-71b7-865f-42c7ad1df5de.jsonl",
+    "name": "hanzi",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 0,
+    "size": 39900,
+    "updatedAt": 1793733986481.9863
+  },
+  {
+    "id": "2026-11-03T17-50-31-115Z_01a1a288-b6cb-7629-b30a-f1c98ab08dae",
+    "fileName": "2026-11-03T17-50-31-115Z_01a1a288-b6cb-7629-b30a-f1c98ab08dae.jsonl",
+    "name": "echo test",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 0,
+    "size": 51701,
+    "updatedAt": 1793729718762.2456
+  },
+  {
+    "id": "2026-11-03T16-51-09-796Z_01a1a252-5f63-748b-935f-d643cc131f6a",
+    "fileName": "2026-11-03T16-51-09-796Z_01a1a252-5f63-748b-935f-d643cc131f6a.jsonl",
+    "name": "saya banyak menaruh path gambar dan meminta agent di pi ",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 150975,
+    "size": 1014642,
+    "updatedAt": 1793727087766.4097
+  },
+  {
+    "id": "2026-11-02T19-52-13-842Z_01a19dd1-c911-711e-b8d8-f8332a68e643",
+    "fileName": "2026-11-02T19-52-13-842Z_01a19dd1-c911-711e-b8d8-f8332a68e643.jsonl",
+    "name": "saya ingin mengikuti lomba hackathon AI, karena saya buk",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 54235,
+    "size": 255315,
+    "updatedAt": 1793651015137.2842
+  },
+  {
+    "id": "2026-11-02T19-43-54-571Z_01a19dca-2acb-711e-b8d8-f8304ea28d0b",
+    "fileName": "2026-11-02T19-43-54-571Z_01a19dca-2acb-711e-b8d8-f8304ea28d0b.jsonl",
+    "name": "saya ingin mengikuti lomba hackaton nasional. Saya sedan",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 20952,
+    "size": 101950,
+    "updatedAt": 1793648942361.4502
+  },
+  {
+    "id": "2026-10-28T10-51-48-712Z_01a18223-3867-72b6-8fea-cca67cb6799f",
+    "fileName": "2026-10-28T10-51-48-712Z_01a18223-3867-72b6-8fea-cca67cb6799f.jsonl",
+    "name": "AutoCast",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 181948,
+    "size": 1793850,
+    "updatedAt": 1793648618241.4836
+  },
+  {
+    "id": "2026-11-02T19-41-57-874Z_01a19dc8-62f1-711e-b8d8-f82f5cbfebcf",
+    "fileName": "2026-11-02T19-41-57-874Z_01a19dc8-62f1-711e-b8d8-f82f5cbfebcf.jsonl",
+    "name": "run pi update --all",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 7723,
+    "size": 41446,
+    "updatedAt": 1793648551209.4834
+  },
+  {
+    "id": "2026-10-31T07-16-55-187Z_01a190d1-8f12-772f-a25a-8714c86b7a56",
+    "fileName": "2026-10-31T07-16-55-187Z_01a190d1-8f12-772f-a25a-8714c86b7a56.jsonl",
+    "name": "You are a professional children's storyteller and educat",
+    "category": "AutoCast",
+    "role": "",
+    "tokens": 9399,
+    "size": 41336,
+    "updatedAt": 1793431039049.798
+  },
+  {
+    "id": "2026-10-31T07-02-44-570Z_01a190c4-9459-733b-9d22-eb29a9a970a4",
+    "fileName": "2026-10-31T07-02-44-570Z_01a190c4-9459-733b-9d22-eb29a9a970a4.jsonl",
+    "name": "You are a professional children's storyteller and educat",
+    "category": "AutoCast",
+    "role": "",
+    "tokens": 10563,
+    "size": 51706,
+    "updatedAt": 1793430193101.7993
+  },
+  {
+    "id": "2026-10-26T18-26-18-551Z_01a17976-9b36-75f3-8d6b-0851cac4e13c",
+    "fileName": "2026-10-26T18-26-18-551Z_01a17976-9b36-75f3-8d6b-0851cac4e13c.jsonl",
+    "name": "saya akan interview magang sebagai ai engineer di pt lau",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 178474,
+    "size": 2092266,
+    "updatedAt": 1793083863080.642
+  },
+  {
+    "id": "2026-10-25T12-48-05-013Z_01a1731a-9794-73ef-9896-6c057c158d4c",
+    "fileName": "2026-10-25T12-48-05-013Z_01a1731a-9794-73ef-9896-6c057c158d4c.jsonl",
+    "name": "penyebab no response header within 180000 ms",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 12538,
+    "size": 63511,
+    "updatedAt": 1792932574755.4797
+  },
+  {
+    "id": "2026-10-25T03-54-51-229Z_01a17132-67dc-7544-afbd-574735a344e4",
+    "fileName": "2026-10-25T03-54-51-229Z_01a17132-67dc-7544-afbd-574735a344e4.jsonl",
+    "name": "bagaimana cara menggunakan repo ini: https://github.com/",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 12805,
+    "size": 59470,
+    "updatedAt": 1792900553470.0593
+  },
+  {
+    "id": "2026-10-23T15-48-42-706Z_01a16973-3e51-73f5-acd0-b7e911982bb2",
+    "fileName": "2026-10-23T15-48-42-706Z_01a16973-3e51-73f5-acd0-b7e911982bb2.jsonl",
+    "name": "run pi update --all",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 7498,
+    "size": 35198,
+    "updatedAt": 1792770605461.1045
+  },
+  {
+    "id": "2026-10-21T00-40-58-994Z_01a15be7-7971-77bd-bfdd-f29f7724d052",
+    "fileName": "2026-10-21T00-40-58-994Z_01a15be7-7971-77bd-bfdd-f29f7724d052.jsonl",
+    "name": "kenaap di path ini: main.ipynb, kernel env speech nya ti",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 78375,
+    "size": 334192,
+    "updatedAt": 1792548087613.6392
+  },
+  {
+    "id": "2026-10-20T18-37-18-660Z_01a15a9a-85c0-769a-be52-a404e46517cc",
+    "fileName": "2026-10-20T18-37-18-660Z_01a15a9a-85c0-769a-be52-a404e46517cc.jsonl",
+    "name": "generate asset",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 590641,
+    "size": 24476258,
+    "updatedAt": 1792532431960.9204
+  },
+  {
+    "id": "2026-10-20T16-17-09-838Z_01a15a1a-36cc-70a7-9dd5-a692ba8e877f",
+    "fileName": "2026-10-20T16-17-09-838Z_01a15a1a-36cc-70a7-9dd5-a692ba8e877f.jsonl",
+    "name": "apakah skill gemini desktop bridge termasuk mcp yanng sa",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 157091,
+    "size": 910642,
+    "updatedAt": 1792521303323.2651
+  },
+  {
+    "id": "2026-10-08T16-33-10-041Z_01a11c5c-8d99-7114-8dcc-da92577e6e84",
+    "fileName": "2026-10-08T16-33-10-041Z_01a11c5c-8d99-7114-8dcc-da92577e6e84.jsonl",
+    "name": "gemini-desktop-bridge-skill",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 440854,
+    "size": 3673424,
+    "updatedAt": 1792520897707.341
+  },
+  {
+    "id": "2026-10-06T21-29-56-410Z_01a1131f-89b9-748f-8f66-6c1f52687763",
+    "fileName": "2026-10-06T21-29-56-410Z_01a1131f-89b9-748f-8f66-6c1f52687763.jsonl",
+    "name": "VoiceDEck",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 110079,
+    "size": 589154,
+    "updatedAt": 1792475906197.9238
+  },
+  {
+    "id": "2026-10-20T04-02-20-839Z_01a15779-7825-7533-861a-56559c35ebba",
+    "fileName": "2026-10-20T04-02-20-839Z_01a15779-7825-7533-861a-56559c35ebba.jsonl",
+    "name": "akses web ini: https://belowzero.co.id/blog/trend-matcha",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 45536,
+    "size": 186662,
+    "updatedAt": 1792470965718.1064
+  },
+  {
+    "id": "2026-10-09T09-40-43-281Z_01a12009-4e91-77ad-a76e-34b79ca8cf94",
+    "fileName": "2026-10-09T09-40-43-281Z_01a12009-4e91-77ad-a76e-34b79ca8cf94.jsonl",
+    "name": "generate-3d-asset",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 359446,
+    "size": 81424427,
+    "updatedAt": 1792431658233.9019
+  },
+  {
+    "id": "2026-10-19T14-15-36-407Z_01a15484-90d6-75fe-8159-6aea49e017d9",
+    "fileName": "2026-10-19T14-15-36-407Z_01a15484-90d6-75fe-8159-6aea49e017d9.jsonl",
+    "name": "apakah mungkin untuk monitor terminal wezterm ini yang s",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 10431,
+    "size": 53495,
+    "updatedAt": 1792419581973.0205
+  },
+  {
+    "id": "2026-10-19T13-54-28-067Z_01a15471-3661-75fe-8159-6ae81453c62f",
+    "fileName": "2026-10-19T13-54-28-067Z_01a15471-3661-75fe-8159-6ae81453c62f.jsonl",
+    "name": "pelajari keseluruhan web ini: https://fidelcristopher.ve",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 161433,
+    "size": 621778,
+    "updatedAt": 1792419065237.1484
+  },
+  {
+    "id": "2026-10-19T14-03-34-404Z_01a15479-8c83-735a-bc35-235fd94c9808",
+    "fileName": "2026-10-19T14-03-34-404Z_01a15479-8c83-735a-bc35-235fd94c9808.jsonl",
+    "name": "coba cek repo ini: https://github.com/mihonapp/mihon, ji",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 8764,
+    "size": 43498,
+    "updatedAt": 1792418753821.2322
+  },
+  {
+    "id": "2026-10-19T10-05-22-783Z_01a1539f-79dd-7126-bbbf-1d7bcfa530d5",
+    "fileName": "2026-10-19T10-05-22-783Z_01a1539f-79dd-7126-bbbf-1d7bcfa530d5.jsonl",
+    "name": "coba cek path ini: finish-him.ipynb, kenapa error",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 28676,
+    "size": 132421,
+    "updatedAt": 1792411823847.0283
+  },
+  {
+    "id": "2026-10-19T04-09-24-653Z_01a15259-93ac-74f9-910a-a86e8cb07f26",
+    "fileName": "2026-10-19T04-09-24-653Z_01a15259-93ac-74f9-910a-a86e8cb07f26.jsonl",
+    "name": "apakah saya bisa pakai model gemini 4 argon?",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 66870,
+    "size": 271357,
+    "updatedAt": 1792390708488.4766
+  },
+  {
+    "id": "2026-10-18T18-15-38-368Z_01a15039-f67f-77da-b8f4-3370db1060ff",
+    "fileName": "2026-10-18T18-15-38-368Z_01a15039-f67f-77da-b8f4-3370db1060ff.jsonl",
+    "name": "coba periksa path gamabr ini: \"C:\\Users\\Pongo\\Downloads\\",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 45242,
+    "size": 403145,
+    "updatedAt": 1792348405661.1072
+  },
+  {
+    "id": "2026-10-13T09-09-06-174Z_01a13485-cbfe-7184-8f90-28690cff094d",
+    "fileName": "2026-10-13T09-09-06-174Z_01a13485-cbfe-7184-8f90-28690cff094d.jsonl",
+    "name": "cek path ini: C:\\Users\\Pongo\\Documents\\LATIHAN-CODING\\Py",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 113090,
+    "size": 545475,
+    "updatedAt": 1791917712932.1572
+  },
+  {
+    "id": "2026-10-11T23-46-41-441Z_01a12d5c-88a0-7227-aa29-a58fda601e72",
+    "fileName": "2026-10-11T23-46-41-441Z_01a12d5c-88a0-7227-aa29-a58fda601e72.jsonl",
+    "name": "coba perika kode pada path ini: C:\\Users\\Pongo\\Documents",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 108578,
+    "size": 569810,
+    "updatedAt": 1791865149049.4536
+  },
+  {
+    "id": "2026-10-12T05-08-33-055Z_01a12e83-349f-7025-a77f-169e0111ff77",
+    "fileName": "2026-10-12T05-08-33-055Z_01a12e83-349f-7025-a77f-169e0111ff77.jsonl",
+    "name": "apakah kamu bisa akses dan edit google colab saya secara",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 200885,
+    "size": 3235169,
+    "updatedAt": 1791794897141.2407
+  },
+  {
+    "id": "2026-10-09T09-39-18-686Z_01a12008-041e-73c7-8b4a-189ebbc6ad56",
+    "fileName": "2026-10-09T09-39-18-686Z_01a12008-041e-73c7-8b4a-189ebbc6ad56.jsonl",
+    "name": "kenapa setiap buka session baru di pi, selalu ada \"555\" ",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 346037,
+    "size": 2175982,
+    "updatedAt": 1791561310916.6304
+  },
+  {
+    "id": "2026-10-09T02-16-36-966Z_01a11e72-b764-720d-ba11-28a73a59eb84",
+    "fileName": "2026-10-09T02-16-36-966Z_01a11e72-b764-720d-ba11-28a73a59eb84.jsonl",
+    "name": "run pi update --all",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 6491,
+    "size": 34989,
+    "updatedAt": 1791512356059.1685
+  },
+  {
+    "id": "2026-10-04T21-33-18-370Z_01a108d5-e6a2-749e-9d27-afdafe5a4b7c",
+    "fileName": "2026-10-04T21-33-18-370Z_01a108d5-e6a2-749e-9d27-afdafe5a4b7c.jsonl",
+    "name": "syntax-git bash",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 16606,
+    "size": 82930,
+    "updatedAt": 1791503208579.8843
+  },
+  {
+    "id": "2026-10-08T16-01-34-964Z_01a11c3f-a2f4-7114-8dcc-da9133db53fb",
+    "fileName": "2026-10-08T16-01-34-964Z_01a11c3f-a2f4-7114-8dcc-da9133db53fb.jsonl",
+    "name": "run pi update --all",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 6272,
+    "size": 30051,
+    "updatedAt": 1791475326490.084
+  },
+  {
+    "id": "2026-10-07T12-05-55-558Z_01a11641-86e5-70bc-8cf1-6f41e928b782",
+    "fileName": "2026-10-07T12-05-55-558Z_01a11641-86e5-70bc-8cf1-6f41e928b782.jsonl",
+    "name": "gunakan path ini untuk mengumpulkan jawaban: C:\\Users\\Po",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 61301,
+    "size": 282763,
+    "updatedAt": 1791375992812.1587
+  },
+  {
+    "id": "2026-10-07T00-54-16-019Z_01a113da-9ad3-716b-b807-1138c2ff612d",
+    "fileName": "2026-10-07T00-54-16-019Z_01a113da-9ad3-716b-b807-1138c2ff612d.jsonl",
+    "name": "C:\\Users\\Pongo\\Documents\\LATIHAN-CODING\\Python\\SpeechDet",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 67655,
+    "size": 271977,
+    "updatedAt": 1791335392897.7227
+  },
+  {
+    "id": "2026-10-06T07-27-38-683Z_01a1101c-64b6-72e3-94f4-3b557932909b",
+    "fileName": "2026-10-06T07-27-38-683Z_01a1101c-64b6-72e3-94f4-3b557932909b.jsonl",
+    "name": "coba periksa path ini : C:\\Users\\Pongo\\Documents\\LATIHAN",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 31773,
+    "size": 115933,
+    "updatedAt": 1791273007631.2578
+  },
+  {
+    "id": "2026-10-04T23-40-19-729Z_01a1094a-3191-7364-a93d-9af77da9c8a0",
+    "fileName": "2026-10-04T23-40-19-729Z_01a1094a-3191-7364-a93d-9af77da9c8a0.jsonl",
+    "name": "train-detector",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 438518,
+    "size": 3052995,
+    "updatedAt": 1791272023691.75
+  },
+  {
+    "id": "2026-10-06T04-10-28-471Z_01a10f67-e0f6-72d0-a93e-47c4144e70b1",
+    "fileName": "2026-10-06T04-10-28-471Z_01a10f67-e0f6-72d0-a93e-47c4144e70b1.jsonl",
+    "name": "run pi update --all",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 6281,
+    "size": 34690,
+    "updatedAt": 1791259858192.2522
+  },
+  {
+    "id": "2026-10-04T23-34-00-409Z_01a10944-67d9-7364-a93d-9af5151aa17d",
+    "fileName": "2026-10-04T23-34-00-409Z_01a10944-67d9-7364-a93d-9af5151aa17d.jsonl",
+    "name": "coba jelaskan path ini: C:\\Users\\Pongo\\portofolio\\src\\co",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 21433,
+    "size": 102625,
+    "updatedAt": 1791157069682.8442
+  },
+  {
+    "id": "2026-10-01T22-49-38-344Z_01a0f9a8-b528-7334-8eb8-e522897f0494",
+    "fileName": "2026-10-01T22-49-38-344Z_01a0f9a8-b528-7334-8eb8-e522897f0494.jsonl",
+    "name": "apakah kamu bisa buat file dengan format .pdf?",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 79088,
+    "size": 1077838,
+    "updatedAt": 1790895959334.9082
+  },
+  {
+    "id": "2026-09-30T01-27-27-651Z_01a0efec-7aa2-76af-899c-9314a4602edc",
+    "fileName": "2026-09-30T01-27-27-651Z_01a0efec-7aa2-76af-899c-9314a4602edc.jsonl",
+    "name": "# pembuatan filter segitiga filters = np.zeros(((mel_fil",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 10531,
+    "size": 50799,
+    "updatedAt": 1790732660113.2773
+  },
+  {
+    "id": "2026-09-21T20-03-40-498Z_01a0c591-2b52-733e-aefd-51f1547d9a44",
+    "fileName": "2026-09-21T20-03-40-498Z_01a0c591-2b52-733e-aefd-51f1547d9a44.jsonl",
+    "name": "cd C:\\Users\\Pongo\\Documents\\LATIHAN-CODING\\Python",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 21304,
+    "size": 141851,
+    "updatedAt": 1790123809367.8171
+  },
+  {
+    "id": "2026-09-22T07-02-10-651Z_01a0c7ec-0bdb-719e-9a86-0cb139dd6cfe",
+    "fileName": "2026-09-22T07-02-10-651Z_01a0c7ec-0bdb-719e-9a86-0cb139dd6cfe.jsonl",
+    "name": "coba periksa kode di folder ini, error di path: C:\\Users",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 17083,
+    "size": 81586,
+    "updatedAt": 1790061093050.4507
+  },
+  {
+    "id": "2026-09-22T07-06-03-354Z_01a0c7ef-98d9-747e-9c38-70419d40a4c8",
+    "fileName": "2026-09-22T07-06-03-354Z_01a0c7ef-98d9-747e-9c38-70419d40a4c8.jsonl",
+    "name": "buatkan saya prompt git untuk push ke repo github untuk ",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 2325,
+    "size": 11605,
+    "updatedAt": 1790060838602.5244
+  },
+  {
+    "id": "2026-09-22T04-33-26-835Z_01a0c763-e132-7667-b632-d3cb628209e3",
+    "fileName": "2026-09-22T04-33-26-835Z_01a0c763-e132-7667-b632-d3cb628209e3.jsonl",
+    "name": "tes",
+    "category": "Global / Home",
+    "role": "",
+    "tokens": 1601,
+    "size": 8801,
+    "updatedAt": 1790051694575.9282
+  }
+]
