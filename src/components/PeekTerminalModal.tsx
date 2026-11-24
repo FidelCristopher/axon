@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAxonStore } from '../store/axonStore';
 import { X, Scissors, Send, Image as ImageIcon } from 'lucide-react';
 
@@ -138,6 +138,117 @@ function formatWezTermText(text: string) {
   });
 }
 
+const ChatMessageRow = React.memo(({ msg }: { msg: ChatMessageItem }) => {
+  if (msg.role === 'system_notice') {
+    return (
+      <div className="my-2.5 py-1 border-y border-[#262626] text-center select-none">
+        <span className="text-[#ff79c6] text-[12px] font-semibold">
+          [COMPACT] {msg.text}
+        </span>
+      </div>
+    );
+  }
+
+  const isUser = msg.role === 'user';
+
+  return (
+    <div className="space-y-1">
+      {isUser ? (
+        <div className="pt-2.5 border-t border-[#262626] space-y-1">
+          <div className="flex items-center space-x-2 text-[#00ffff] font-bold text-[13px]">
+            <span>&gt; User:</span>
+            {msg.timestamp && (
+              <span className="text-[11px] text-[#737373] font-normal">
+                [{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}]
+              </span>
+            )}
+          </div>
+
+          {msg.attachedImages && msg.attachedImages.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 my-1.5">
+              {msg.attachedImages.map((src, imgIdx) => (
+                <div key={imgIdx} className="w-24 h-24 rounded border border-[#262626] overflow-hidden bg-[#0a0a0a]">
+                  <img src={src} alt="Attached" className="w-full h-full object-cover" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {msg.text && (
+            <div className="text-[#ffffff] pl-3 text-[14px] leading-[1.55] whitespace-pre-wrap select-text">
+              {msg.text}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-1 pl-1">
+          {msg.tools && msg.tools.length > 0 && (
+            <div className="my-1.5 space-y-0.5">
+              {msg.tools.map((t: any, tIdx: number) => (
+                <div
+                  key={tIdx}
+                  className="text-[12.5px] text-[#a3a3a3] flex items-center space-x-1.5"
+                >
+                  <span className="text-[#ff00ff] font-bold">$</span>
+                  <span className="text-[#00ffff] font-semibold">
+                    {t.name || 'tool'}
+                  </span>
+                  <span className="text-[#737373] truncate max-w-[550px]">
+                    {t.args ? JSON.stringify(t.args).slice(0, 95) : t.output ? String(t.output).slice(0, 75) : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {msg.text && (
+            <div className="space-y-0.5 select-text">
+              {formatWezTermText(msg.text)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+
+const ChatMessageList = React.memo(
+  ({
+    messages,
+    visibleCount,
+    onLoadEarlier,
+  }: {
+    messages: ChatMessageItem[];
+    visibleCount: number;
+    onLoadEarlier: () => void;
+  }) => {
+    const visibleMessages = useMemo(
+      () => (messages.length > visibleCount ? messages.slice(-visibleCount) : messages),
+      [messages, visibleCount]
+    );
+    const hiddenCount = Math.max(0, messages.length - visibleMessages.length);
+
+    return (
+      <>
+        {hiddenCount > 0 && (
+          <div className="flex justify-center py-2 select-none">
+            <button
+              type="button"
+              onClick={onLoadEarlier}
+              className="px-3 py-1 rounded bg-[#18181b] hover:bg-[#262626] border border-[#262626] text-[12px] text-[#00ffff] transition-colors"
+            >
+              [Load earlier turns (+100) • {hiddenCount} hidden]
+            </button>
+          </div>
+        )}
+        {visibleMessages.map((msg, index) => (
+          <ChatMessageRow key={msg.id || index} msg={msg} />
+        ))}
+      </>
+    );
+  }
+);
+
 export const PeekTerminalModal: React.FC = () => {
   const { 
     entities, 
@@ -154,7 +265,12 @@ export const PeekTerminalModal: React.FC = () => {
 
   // Single Unified Chat & Telemetry Stream
   const [chatMessages, setChatMessages] = useState<ChatMessageItem[]>([]);
+  const [visibleCount, setVisibleCount] = useState(80);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  const handleLoadEarlier = useCallback(() => {
+    setVisibleCount((prev) => prev + 100);
+  }, []);
 
   // Multimodal Image Attachment States (Drag & Drop, Paste, File Input)
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
@@ -178,6 +294,7 @@ export const PeekTerminalModal: React.FC = () => {
     if (!isTerminalModalOpen || !entity) return;
 
     setIsLoadingHistory(true);
+    setVisibleCount(80);
     const targetLookup = entity.uuid || entity.id;
 
     fetch(`/api/session-history?id=${encodeURIComponent(targetLookup)}`)
@@ -283,8 +400,8 @@ export const PeekTerminalModal: React.FC = () => {
 
   // Auto-scroll to bottom of chat when new messages or turns arrive
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages, isSending]);
+    chatEndRef.current?.scrollIntoView({ behavior: 'auto' });
+  }, [chatMessages.length, isSending]);
 
   // Multimodal Image Helper Functions
   const processImageFiles = (files: FileList | File[]) => {
@@ -544,84 +661,11 @@ export const PeekTerminalModal: React.FC = () => {
               </p>
             </div>
           ) : (
-            chatMessages.map((msg, index) => {
-              if (msg.role === 'system_notice') {
-                return (
-                  <div key={msg.id || index} className="my-2.5 py-1 border-y border-[#262626] text-center select-none">
-                    <span className="text-[#ff79c6] text-[12px] font-semibold">
-                      [COMPACT] {msg.text}
-                    </span>
-                  </div>
-                );
-              }
-
-              const isUser = msg.role === 'user';
-
-              return (
-                <div key={msg.id || index} className="space-y-1">
-                  {/* User Turn Prompt Line */}
-                  {isUser ? (
-                    <div className="pt-2.5 border-t border-[#262626] space-y-1">
-                      <div className="flex items-center space-x-2 text-[#00ffff] font-bold text-[13px]">
-                        <span>&gt; User:</span>
-                        {msg.timestamp && (
-                          <span className="text-[11px] text-[#737373] font-normal">
-                            [{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}]
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Attached images if sent by user */}
-                      {msg.attachedImages && msg.attachedImages.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 my-1.5">
-                          {msg.attachedImages.map((src, imgIdx) => (
-                            <div key={imgIdx} className="w-24 h-24 rounded border border-[#262626] overflow-hidden bg-[#0a0a0a]">
-                              <img src={src} alt="Attached" className="w-full h-full object-cover" />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {msg.text && (
-                        <div className="text-[#ffffff] pl-3 text-[14px] leading-[1.55] whitespace-pre-wrap select-text">
-                          {msg.text}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    /* Assistant Turn (WezTerm High-Contrast Syntax Highlighted) */
-                    <div className="space-y-1 pl-1">
-                      {/* Tool Invocations in WezTerm CLI Style */}
-                      {msg.tools && msg.tools.length > 0 && (
-                        <div className="my-1.5 space-y-0.5">
-                          {msg.tools.map((t: any, tIdx: number) => (
-                            <div
-                              key={tIdx}
-                              className="text-[12.5px] text-[#a3a3a3] flex items-center space-x-1.5"
-                            >
-                              <span className="text-[#ff00ff] font-bold">$</span>
-                              <span className="text-[#00ffff] font-semibold">
-                                {t.name || 'tool'}
-                              </span>
-                              <span className="text-[#737373] truncate max-w-[550px]">
-                                {t.args ? JSON.stringify(t.args).slice(0, 95) : t.output ? String(t.output).slice(0, 75) : ''}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Assistant Text Body formatted with WezTerm Colors */}
-                      {msg.text && (
-                        <div className="space-y-0.5 select-text">
-                          {formatWezTermText(msg.text)}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })
+            <ChatMessageList
+              messages={chatMessages}
+              visibleCount={visibleCount}
+              onLoadEarlier={handleLoadEarlier}
+            />
           )}
           <div ref={chatEndRef} />
         </div>
