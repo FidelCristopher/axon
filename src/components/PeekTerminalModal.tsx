@@ -282,7 +282,10 @@ export const PeekTerminalModal: React.FC = () => {
 
   const [inputPrompt, setInputPrompt] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [activeModel, setActiveModel] = useState('gemini-4-neon');
+  const [agentPhase, setAgentPhase] = useState<'idle' | 'working' | 'thinking' | 'tool' | 'streaming'>('idle');
+  const [activeToolName, setActiveToolName] = useState<string>('');
+  const [thinkingPreview, setThinkingPreview] = useState<string>('');
+  const [activeModel, setActiveModel] = useState('gemini-3.8-flash');
   const [thinkingLevel, setThinkingLevel] = useState<'off' | 'low' | 'medium' | 'high'>('medium');
   const [slashSelectedIdx, setSlashSelectedIdx] = useState(0);
   const [slashDismissed, setSlashDismissed] = useState(false);
@@ -409,6 +412,13 @@ export const PeekTerminalModal: React.FC = () => {
         if (!data || !data.type) return;
 
         if (data.type === 'agent_start' && data.nodeId === selectedEntityId) {
+          setAgentPhase('working');
+          setThinkingPreview('');
+          setActiveToolName('');
+          if (data.model) {
+            const parts = String(data.model).split('/');
+            if (parts[1]) setActiveModel(parts[1]);
+          }
           updateEntityStatus(selectedEntityId, 'WORKING', 'Agent executing prompt...');
           setChatMessages((prev) => [
             ...prev,
@@ -420,7 +430,11 @@ export const PeekTerminalModal: React.FC = () => {
               timestamp: Date.now(),
             },
           ]);
+        } else if (data.type === 'thinking_delta' && data.nodeId === selectedEntityId) {
+          setAgentPhase('thinking');
+          setThinkingPreview((prev) => (prev + (data.delta || '')).slice(-140));
         } else if (data.type === 'text_delta' && data.nodeId === selectedEntityId) {
+          setAgentPhase('streaming');
           setChatMessages((prev) => {
             const list = [...prev];
             const last = list[list.length - 1];
@@ -442,6 +456,8 @@ export const PeekTerminalModal: React.FC = () => {
             ];
           });
         } else if (data.type === 'tool_start' && data.nodeId === selectedEntityId) {
+          setAgentPhase('tool');
+          setActiveToolName(data.tool || 'tool');
           setChatMessages((prev) => {
             const list = [...prev];
             const last = list[list.length - 1];
@@ -470,6 +486,9 @@ export const PeekTerminalModal: React.FC = () => {
           });
         } else if (data.type === 'agent_end' && data.nodeId === selectedEntityId) {
           updateEntityStatus(selectedEntityId, 'IDLE', 'Task complete. State settled to IDLE.');
+          setAgentPhase('idle');
+          setActiveToolName('');
+          setThinkingPreview('');
           setIsSending(false);
         } else if (data.type === 'agent_error' && data.nodeId === selectedEntityId) {
           setChatMessages((prev) => [
@@ -482,6 +501,9 @@ export const PeekTerminalModal: React.FC = () => {
             },
           ]);
           updateEntityStatus(selectedEntityId, 'IDLE', 'Error executing prompt');
+          setAgentPhase('idle');
+          setActiveToolName('');
+          setThinkingPreview('');
           setIsSending(false);
         }
       } catch {}
@@ -693,6 +715,9 @@ export const PeekTerminalModal: React.FC = () => {
     setSlashDismissed(false);
     setAttachedImages([]);
     setIsSending(true);
+    setAgentPhase('working');
+    setThinkingPreview('');
+    setActiveToolName('');
 
     const targetCwd = resolveCwd(entity);
 
@@ -873,6 +898,41 @@ export const PeekTerminalModal: React.FC = () => {
               onLoadEarlier={handleLoadEarlier}
             />
           )}
+
+          {/* Live Thinking / Working Status Indicator */}
+          {isSending && (
+            <div className="pt-2 flex items-start space-x-2.5 text-[13px] select-none">
+              <div className="w-3.5 h-3.5 mt-0.5 border-2 border-[#ff00ff] border-t-transparent rounded-full animate-spin shrink-0" />
+              <div className="space-y-0.5 min-w-0">
+                <div className="flex items-center space-x-2">
+                  <span className="font-bold text-[#ffff00]">
+                    {agentPhase === 'thinking'
+                      ? '[THINKING]'
+                      : agentPhase === 'tool'
+                      ? `[WORKING • $ ${activeToolName}]`
+                      : agentPhase === 'streaming'
+                      ? '[STREAMING]'
+                      : '[WORKING]'}
+                  </span>
+                  <span className="text-[#a3a3a3]">
+                    {agentPhase === 'thinking'
+                      ? 'Model sedang berpikir...'
+                      : agentPhase === 'tool'
+                      ? `Menjalankan tool ${activeToolName}...`
+                      : agentPhase === 'streaming'
+                      ? 'Menulis respons...'
+                      : 'Menghubungi Pi engine (antigravity)...'}
+                  </span>
+                </div>
+                {agentPhase === 'thinking' && thinkingPreview && (
+                  <div className="text-[12px] text-[#737373] italic truncate max-w-[780px]">
+                    {thinkingPreview.replace(/\s+/g, ' ').trim()}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div ref={chatEndRef} />
         </div>
 

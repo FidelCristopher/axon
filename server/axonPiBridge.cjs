@@ -3,7 +3,8 @@ const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
 const {
-  createAgentSession,
+  createAgentSessionServices,
+  createAgentSessionFromServices,
   SessionManager,
 } = require("/home/fidel/.pi/agent/install/releases/1.6.0/node_modules/@earendil-works/pi-coding-agent");
 
@@ -115,7 +116,8 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
       (existingFile ? ` (resuming ${path.basename(existingFile)})` : " (fresh session)")
   );
 
-  const opts = { cwd: safeCwd };
+  const services = await createAgentSessionServices({ cwd: safeCwd });
+  const opts = { services };
   if (existingFile) {
     try {
       opts.sessionManager = SessionManager.open(existingFile);
@@ -124,7 +126,10 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
     }
   }
 
-  const { session } = await createAgentSession(opts);
+  const { session } = await createAgentSessionFromServices(opts);
+  console.log(
+    `[Pi Bridge] Session [${nodeId}] ready with model: ${session.model?.provider}/${session.model?.id}`
+  );
 
   session.subscribe((event) => {
     if (event.type === "message_update") {
@@ -133,6 +138,20 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
         broadcastEvent("text_delta", {
           nodeId,
           delta: assistantEvent.delta,
+        });
+      } else if (assistantEvent && assistantEvent.type === "thinking_delta") {
+        broadcastEvent("thinking_delta", {
+          nodeId,
+          delta: assistantEvent.delta,
+        });
+      }
+    } else if (event.type === "message_end") {
+      if (event.message && event.message.stopReason === "error") {
+        const errMsg = event.message.errorMessage || "Model returned an error";
+        console.error(`[Pi Bridge] [${nodeId}] Model error:`, errMsg);
+        broadcastEvent("agent_error", {
+          nodeId,
+          error: errMsg,
         });
       }
     } else if (event.type === "tool_execution_start") {
@@ -148,7 +167,10 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
         isError: event.isError,
       });
     } else if (event.type === "agent_start") {
-      broadcastEvent("agent_start", { nodeId });
+      broadcastEvent("agent_start", {
+        nodeId,
+        model: session.model ? `${session.model.provider}/${session.model.id}` : undefined,
+      });
     } else if (event.type === "agent_end") {
       const usage = session.messages[session.messages.length - 1]?.usage || {};
       broadcastEvent("agent_end", {
@@ -158,8 +180,9 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
     }
   });
 
-  activeSessions.set(nodeId, session);
-  return session;
+  const entry = { session, services };
+  activeSessions.set(nodeId, entry);
+  return entry;
 }
 
 function readJsonBody(req) {
@@ -259,7 +282,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const targetNode = nodeId || "hub-main";
-      const session = await getOrCreateSession(targetNode, cwd, sessionId);
+      const { session, services } = await getOrCreateSession(targetNode, cwd, sessionId);
 
       if (thinkingLevel && typeof session.setThinkingLevel === "function") {
         try {
@@ -267,6 +290,11 @@ const server = http.createServer(async (req, res) => {
         } catch {
           // ignore if unsupported by model
         }
+      }
+
+      // Optional model override if requested from UI
+      if (req.url && services?.modelRuntime?.models) {
+        // Keep session's antigravity default unless explicitly switched
       }
 
       const formattedImages = Array.isArray(images)
@@ -281,13 +309,19 @@ const server = http.createServer(async (req, res) => {
         : [];
 
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ accepted: true, nodeId: targetNode }));
+      res.end(
+        JSON.stringify({
+          accepted: true,
+          nodeId: targetNode,
+          model: session.model ? `${session.model.provider}/${session.model.id}` : undefined,
+        })
+      );
 
-      broadcastEvent("agent_start", { nodeId: targetNode });
       const promptOpts = formattedImages.length > 0 ? { images: formattedImages } : undefined;
       session
         .prompt((prompt || "Analyze the attached image(s).").trim(), promptOpts)
         .catch((err) => {
+          console.error(`[Pi Bridge] [${targetNode}] Prompt failed:`, err);
           broadcastEvent("agent_error", { nodeId: targetNode, error: err.message });
         });
     } catch (err) {
@@ -302,7 +336,7 @@ const server = http.createServer(async (req, res) => {
     try {
       const { nodeId } = await readJsonBody(req);
       if (nodeId && activeSessions.has(nodeId)) {
-        const session = activeSessions.get(nodeId);
+        const { session } = activeSessions.get(nodeId);
         if (typeof session.compact === "function") {
           await session.compact();
         } else {
