@@ -19,7 +19,8 @@ export const EntityGraphCanvas: React.FC = () => {
     entities, 
     relationships, 
     selectedEntityId, 
-    setSelectedEntityId 
+    setSelectedEntityId,
+    setIsTerminalModalOpen
   } = useAxonStore();
 
   const { nodes, edges } = useMemo(() => {
@@ -92,7 +93,10 @@ export const EntityGraphCanvas: React.FC = () => {
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
-        onNodeClick={(_, node) => setSelectedEntityId(node.id)}
+        onNodeClick={(_, node) => {
+          setSelectedEntityId(node.id);
+          setIsTerminalModalOpen(true);
+        }}
         fitView
         minZoom={0.3}
         maxZoom={2.0}

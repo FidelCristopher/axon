@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { GraphEntity } from '../types/axon';
-import { ENTITY_TYPE_CONFIGS } from '../store/axonStore';
+import { ENTITY_TYPE_CONFIGS, useAxonStore } from '../store/axonStore';
 
 interface EntityGraphNodeProps {
   data: {
@@ -12,13 +12,21 @@ interface EntityGraphNodeProps {
 
 export const EntityGraphNode: React.FC<EntityGraphNodeProps> = memo(({ data }) => {
   const { entity, isSelected } = data;
+  const { setSelectedEntityId, setIsTerminalModalOpen } = useAxonStore();
   const config = ENTITY_TYPE_CONFIGS.find((c) => c.type === entity.type);
   const nodeColor = config ? config.color : '#ea580c';
   const isWorking = entity.status === 'WORKING';
   const isCompacting = entity.status === 'COMPACTING';
 
   return (
-    <div className="relative flex items-center group cursor-pointer select-none">
+    <div 
+      onClick={(e) => {
+        e.stopPropagation();
+        setSelectedEntityId(entity.id);
+        setIsTerminalModalOpen(true);
+      }}
+      className="relative flex items-center group cursor-pointer select-none"
+    >
       <Handle
         type="target"
         position={Position.Left}
