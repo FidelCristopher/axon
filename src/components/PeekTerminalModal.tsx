@@ -80,14 +80,14 @@ function formatWezTermText(text: string) {
     // Markdown Headers: ### Header -> Bright Yellow (#ffff00)
     if (trimmed.startsWith('###')) {
       return (
-        <div key={lIdx} className="text-[#ffff00] font-bold text-xs mt-3 mb-1 font-mono tracking-normal">
+        <div key={lIdx} className="text-[#ffff00] font-bold text-[14px] mt-3.5 mb-1 tracking-normal">
           {line.replace(/^###\s*/, '### ')}
         </div>
       );
     }
     if (trimmed.startsWith('##')) {
       return (
-        <div key={lIdx} className="text-[#ffff00] font-bold text-xs mt-3 mb-1 font-mono tracking-normal">
+        <div key={lIdx} className="text-[#ffff00] font-bold text-[14px] mt-3.5 mb-1 tracking-normal">
           {line.replace(/^##\s*/, '## ')}
         </div>
       );
@@ -100,7 +100,7 @@ function formatWezTermText(text: string) {
       const num = numberedMatch[2];
       const rest = numberedMatch[3];
       return (
-        <div key={lIdx} className="flex items-start space-x-1.5 leading-relaxed font-mono text-xs text-[#d4d4d4]">
+        <div key={lIdx} className="flex items-start space-x-1.5 leading-[1.55] text-[14px] text-[#d4d4d4]">
           <span className="text-[#ff00ff] font-bold shrink-0">{indent}{num}</span>
           <span>{renderInlineHighlights(rest)}</span>
         </div>
@@ -113,7 +113,7 @@ function formatWezTermText(text: string) {
       const indent = bulletMatch[1];
       const rest = bulletMatch[3];
       return (
-        <div key={lIdx} className="flex items-start space-x-1.5 leading-relaxed font-mono text-xs text-[#d4d4d4]">
+        <div key={lIdx} className="flex items-start space-x-1.5 leading-[1.55] text-[14px] text-[#d4d4d4]">
           <span className="text-[#ff00ff] shrink-0 font-bold">{indent}-</span>
           <span>{renderInlineHighlights(rest)}</span>
         </div>
@@ -121,9 +121,9 @@ function formatWezTermText(text: string) {
     }
 
     // Compaction notice line
-    if (trimmed.startsWith('[✂️') || trimmed.includes('compacted cleanly')) {
+    if (trimmed.startsWith('[COMPACT]') || trimmed.includes('compacted cleanly')) {
       return (
-        <div key={lIdx} className="my-2 py-0.5 text-[#ff79c6] font-mono text-xs font-semibold">
+        <div key={lIdx} className="my-2 py-0.5 text-[#ff79c6] text-[13px] font-semibold">
           {renderInlineHighlights(line)}
         </div>
       );
@@ -131,7 +131,7 @@ function formatWezTermText(text: string) {
 
     // Regular terminal lines
     return (
-      <div key={lIdx} className="leading-relaxed font-mono text-xs text-[#d4d4d4] whitespace-pre-wrap">
+      <div key={lIdx} className="leading-[1.55] text-[14px] text-[#d4d4d4] whitespace-pre-wrap">
         {renderInlineHighlights(line)}
       </div>
     );
@@ -518,9 +518,9 @@ export const PeekTerminalModal: React.FC = () => {
         </div>
 
         {/* Terminal Content Body (Authentic WezTerm CLI Monospace Canvas) */}
-        <div className="flex-1 bg-[#000000] p-4 overflow-y-auto space-y-3 font-mono text-[13px] leading-relaxed select-text">
+        <div className="flex-1 bg-[#000000] p-5 overflow-y-auto space-y-3.5 text-[14px] leading-[1.55] select-text">
           {/* Top Divider */}
-          <div className="border-b border-[#262626] pb-1.5 text-[11px] text-[#737373] flex items-center justify-between select-none">
+          <div className="border-b border-[#262626] pb-2 text-[12px] text-[#737373] flex items-center justify-between select-none">
             <div>
               <span className="text-[#00ffff]">~ • {entity.name}</span>
               <span className="text-[#525252] ml-2">({entity.worktree})</span>
@@ -532,14 +532,14 @@ export const PeekTerminalModal: React.FC = () => {
 
           {/* Loading Indicator */}
           {isLoadingHistory ? (
-            <div className="flex flex-col items-center justify-center py-16 text-[#737373] font-mono text-xs space-y-2 select-none">
+            <div className="flex flex-col items-center justify-center py-16 text-[#737373] text-[13px] space-y-2 select-none">
               <div className="w-5 h-5 border-2 border-[#ff00ff] border-t-transparent rounded-full animate-spin" />
               <span>[reading session logs from ~/.pi/agent/sessions/...]</span>
             </div>
           ) : chatMessages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-[#737373] font-mono text-xs space-y-1 text-center select-none">
-              <div className="text-xs font-bold text-[#ffff00]">&gt; Terminal Session Initialized</div>
-              <p className="text-[11px] text-[#737373]">
+            <div className="flex flex-col items-center justify-center py-16 text-[#737373] text-[13px] space-y-1 text-center select-none">
+              <div className="text-[14px] font-bold text-[#ffff00]">&gt; Terminal Session Initialized</div>
+              <p className="text-[12px] text-[#737373]">
                 Type prompt or paste screenshot (Ctrl+V) to begin execution.
               </p>
             </div>
@@ -548,8 +548,8 @@ export const PeekTerminalModal: React.FC = () => {
               if (msg.role === 'system_notice') {
                 return (
                   <div key={msg.id || index} className="my-2.5 py-1 border-y border-[#262626] text-center select-none">
-                    <span className="text-[#ff79c6] text-[11px] font-mono font-semibold">
-                      [✂️ {msg.text}]
+                    <span className="text-[#ff79c6] text-[12px] font-semibold">
+                      [COMPACT] {msg.text}
                     </span>
                   </div>
                 );
@@ -561,11 +561,11 @@ export const PeekTerminalModal: React.FC = () => {
                 <div key={msg.id || index} className="space-y-1">
                   {/* User Turn Prompt Line */}
                   {isUser ? (
-                    <div className="pt-2 border-t border-[#262626] space-y-1">
-                      <div className="flex items-center space-x-2 text-[#00ffff] font-bold text-xs">
+                    <div className="pt-2.5 border-t border-[#262626] space-y-1">
+                      <div className="flex items-center space-x-2 text-[#00ffff] font-bold text-[13px]">
                         <span>&gt; User:</span>
                         {msg.timestamp && (
-                          <span className="text-[10px] text-[#737373] font-normal font-mono">
+                          <span className="text-[11px] text-[#737373] font-normal">
                             [{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}]
                           </span>
                         )}
@@ -583,7 +583,7 @@ export const PeekTerminalModal: React.FC = () => {
                       )}
 
                       {msg.text && (
-                        <div className="text-[#ffffff] font-mono pl-3 leading-relaxed whitespace-pre-wrap select-text">
+                        <div className="text-[#ffffff] pl-3 text-[14px] leading-[1.55] whitespace-pre-wrap select-text">
                           {msg.text}
                         </div>
                       )}
@@ -597,7 +597,7 @@ export const PeekTerminalModal: React.FC = () => {
                           {msg.tools.map((t: any, tIdx: number) => (
                             <div
                               key={tIdx}
-                              className="text-[11px] font-mono text-[#a3a3a3] flex items-center space-x-1.5"
+                              className="text-[12.5px] text-[#a3a3a3] flex items-center space-x-1.5"
                             >
                               <span className="text-[#ff00ff] font-bold">$</span>
                               <span className="text-[#00ffff] font-semibold">
@@ -667,7 +667,7 @@ export const PeekTerminalModal: React.FC = () => {
         />
 
         {/* WezTerm Style Bottom Telemetry Status Line */}
-        <div className="px-3 py-1 bg-[#000000] border-t border-[#262626] flex items-center justify-between text-[11px] text-[#737373] font-mono select-none">
+        <div className="px-3.5 py-1.5 bg-[#000000] border-t border-[#262626] flex items-center justify-between text-[12px] text-[#737373] select-none">
           <div className="flex items-center space-x-2">
             <span className="text-[#00ffff]">~ • {entity.name}</span>
             <span>|</span>
@@ -681,17 +681,17 @@ export const PeekTerminalModal: React.FC = () => {
         </div>
 
         {/* WezTerm CLI Style Input Bar */}
-        <form onSubmit={handleSendPrompt} className="p-2 bg-[#000000] border-t border-[#262626] flex items-center space-x-2 font-mono">
+        <form onSubmit={handleSendPrompt} className="p-2.5 bg-[#000000] border-t border-[#262626] flex items-center space-x-2">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="p-1.5 rounded hover:bg-[#18181b] text-[#737373] hover:text-[#ffff00] border border-[#262626] transition-colors shrink-0"
             title="Attach Image (Ctrl+V / Drag & Drop)"
           >
-            <ImageIcon className="w-3.5 h-3.5" />
+            <ImageIcon className="w-4 h-4" />
           </button>
 
-          <div className="text-[#ff00ff] font-mono text-xs font-bold pl-1">&gt;</div>
+          <div className="text-[#ff00ff] text-[14px] font-bold pl-1">&gt;</div>
           <input
             type="text"
             placeholder={
@@ -702,15 +702,15 @@ export const PeekTerminalModal: React.FC = () => {
             value={inputPrompt}
             disabled={isSending}
             onChange={(e) => setInputPrompt(e.target.value)}
-            className="flex-1 bg-[#000000] border border-[#262626] rounded text-xs px-3 py-1.5 text-[#ffffff] placeholder-[#525252] focus:outline-none focus:border-[#ff00ff] font-mono disabled:opacity-50"
+            className="flex-1 bg-[#000000] border border-[#262626] rounded text-[14px] px-3 py-1.5 text-[#ffffff] placeholder-[#525252] focus:outline-none focus:border-[#ff00ff] disabled:opacity-50"
             autoFocus
           />
           <button
             type="submit"
             disabled={(!inputPrompt.trim() && attachedImages.length === 0) || isSending}
-            className="px-3.5 py-1.5 rounded bg-[#18181b] hover:bg-[#262626] hover:text-[#ffffff] text-xs font-bold text-[#ff00ff] border border-[#262626] disabled:opacity-30 shadow-xs flex items-center space-x-1 font-mono shrink-0 transition-colors"
+            className="px-3.5 py-1.5 rounded bg-[#18181b] hover:bg-[#262626] hover:text-[#ffffff] text-[13px] font-bold text-[#ff00ff] border border-[#262626] disabled:opacity-30 shadow-xs flex items-center space-x-1 shrink-0 transition-colors"
           >
-            <Send className="w-3 h-3 text-[#ff00ff]" />
+            <Send className="w-3.5 h-3.5 text-[#ff00ff]" />
             <span>{isSending ? 'Running...' : 'Send ↵'}</span>
           </button>
         </form>
