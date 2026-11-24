@@ -10,7 +10,9 @@ import {
   Scissors, 
   GitBranch, 
   SlidersHorizontal,
-  Terminal
+  Terminal,
+  X,
+  Check
 } from 'lucide-react';
 
 export const NodeDetailSidebar: React.FC = () => {
@@ -24,6 +26,8 @@ export const NodeDetailSidebar: React.FC = () => {
     removeEntity,
     addEntity,
     applySkillsToSelected,
+    addSkillToEntity,
+    removeSkillFromEntity,
     compactAllEntities,
     compactSelectedEntities,
     setIsTerminalModalOpen,
@@ -33,7 +37,14 @@ export const NodeDetailSidebar: React.FC = () => {
   const [newBranchName, setNewBranchName] = useState('');
   const [newBranchType, setNewBranchType] = useState<GraphEntity['type']>('dev');
   const [newBranchWorktree, setNewBranchWorktree] = useState('feat/new-task');
-  const [selectedSkillsToInject, setSelectedSkillsToInject] = useState<string[]>([]);
+
+  // Flexible Skill Injection States
+  const [customSkillInput, setCustomSkillInput] = useState('');
+  const [activeSkillsQueue, setActiveSkillsQueue] = useState<string[]>(['antislop-ui']);
+
+  // Per-session inline skill input state
+  const [addingSkillToSessionId, setAddingSkillToSessionId] = useState<string | null>(null);
+  const [inlineSkillText, setInlineSkillText] = useState('');
 
   const handleCreateBranch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,16 +54,32 @@ export const NodeDetailSidebar: React.FC = () => {
     setIsAddOpen(false);
   };
 
-  const handleToggleSkill = (skillId: string) => {
-    setSelectedSkillsToInject((prev) =>
-      prev.includes(skillId) ? prev.filter((id) => id !== skillId) : [...prev, skillId]
-    );
+  const handleAddCustomSkillToQueue = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = customSkillInput.trim().toLowerCase();
+    if (!clean) return;
+    if (!activeSkillsQueue.includes(clean)) {
+      setActiveSkillsQueue((prev) => [...prev, clean]);
+    }
+    setCustomSkillInput('');
   };
 
-  const handleApplySkills = () => {
-    if (selectedSkillsToInject.length === 0 || selectedSessionIds.length === 0) return;
-    applySkillsToSelected(selectedSkillsToInject);
-    setSelectedSkillsToInject([]);
+  const handleRemoveSkillFromQueue = (skillName: string) => {
+    setActiveSkillsQueue((prev) => prev.filter((s) => s !== skillName));
+  };
+
+  const handleApplySkillsToSelected = () => {
+    if (activeSkillsQueue.length === 0 || selectedSessionIds.length === 0) return;
+    applySkillsToSelected(activeSkillsQueue);
+  };
+
+  const handleAddInlineSkill = (sessionId: string) => {
+    const clean = inlineSkillText.trim().toLowerCase();
+    if (clean) {
+      addSkillToEntity(sessionId, clean);
+    }
+    setInlineSkillText('');
+    setAddingSkillToSessionId(null);
   };
 
   const allSelected = entities.length > 0 && selectedSessionIds.length === entities.length;
@@ -151,11 +178,11 @@ export const NodeDetailSidebar: React.FC = () => {
         </form>
       )}
 
-      {/* 3. Pi Sessions List with Multi-Select */}
+      {/* 3. Pi Sessions List with Individual Skill Tags & Remove Capability */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         <div className="flex items-center justify-between pb-1 text-xs text-[#64748b]">
           <span className="font-bold text-[11px] uppercase tracking-wider text-[#64748b] font-mono">
-            Pi Sessions ({selectedSessionIds.length}/{entities.length})
+            Active Panels ({selectedSessionIds.length}/{entities.length})
           </span>
           <button
             onClick={() => selectAllSessions(!allSelected)}
@@ -171,6 +198,7 @@ export const NodeDetailSidebar: React.FC = () => {
           const isFocusedInGraph = selectedEntityId === session.id;
           const isWorking = session.status === 'WORKING';
           const isCompacting = session.status === 'COMPACTING';
+          const isAddingInlineSkill = addingSkillToSessionId === session.id;
 
           return (
             <div
@@ -250,62 +278,163 @@ export const NodeDetailSidebar: React.FC = () => {
                 <span>{((session.tokenUsed / session.tokenMax) * 100).toFixed(0)}% token</span>
               </div>
 
-              {/* Active Skills tags */}
-              {session.skills.length > 0 && (
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {session.skills.map((skillId) => (
-                    <span
-                      key={skillId}
-                      className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-[#f1f5f9] text-[#475569] border border-[#e2e8f0]"
+              {/* Flexible Skills Tags with Remove (x) and Add (+) Button */}
+              <div className="mt-2 flex flex-wrap items-center gap-1">
+                {session.skills.map((skillName) => (
+                  <span
+                    key={skillName}
+                    className="text-[9px] font-mono pl-1.5 pr-1 py-0.5 rounded bg-[#f1f5f9] text-[#334155] border border-[#e2e8f0] flex items-center space-x-1 group/skill hover:border-[#cbd5e1]"
+                  >
+                    <span>{skillName}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeSkillFromEntity(session.id, skillName);
+                      }}
+                      className="text-[#94a3b8] hover:text-[#ef4444] rounded p-0.2"
+                      title="Remove skill"
                     >
-                      {skillId}
-                    </span>
-                  ))}
-                </div>
-              )}
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </span>
+                ))}
+
+                {isAddingInlineSkill ? (
+                  <div className="flex items-center space-x-1 bg-[#ffffff] border border-[#e11d48] rounded px-1 py-0.5">
+                    <input
+                      type="text"
+                      placeholder="Skill name..."
+                      value={inlineSkillText}
+                      onChange={(e) => setInlineSkillText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddInlineSkill(session.id);
+                        if (e.key === 'Escape') setAddingSkillToSessionId(null);
+                      }}
+                      className="w-24 text-[9px] font-mono focus:outline-none text-[#0f172a]"
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => handleAddInlineSkill(session.id)}
+                      className="text-[#e11d48] hover:text-[#be123c]"
+                    >
+                      <Check className="w-2.5 h-2.5" />
+                    </button>
+                    <button
+                      onClick={() => setAddingSkillToSessionId(null)}
+                      className="text-[#94a3b8] hover:text-[#0f172a]"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setAddingSkillToSessionId(session.id);
+                      setInlineSkillText('');
+                    }}
+                    className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-dashed border-[#cbd5e1] hover:border-[#e11d48] hover:text-[#e11d48] text-[#64748b] flex items-center space-x-0.5 transition-colors"
+                    title="Add skill to this session"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                    <span>Skill</span>
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
       </div>
 
-      {/* 4. Batch Skill Injector */}
-      <div className="p-3.5 border-t border-[#e2e8f0] bg-[#ffffff] shadow-xs">
-        <div className="flex items-center justify-between mb-2">
+      {/* 4. Truly Flexible Dynamic Skill Injector */}
+      <div className="p-3.5 border-t border-[#e2e8f0] bg-[#ffffff] shadow-xs space-y-2.5">
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-1.5 text-xs font-bold text-[#0f172a] font-mono">
             <Sparkles className="w-3.5 h-3.5 text-[#e11d48]" />
-            <span>Batch Skill Injector</span>
+            <span>Flexible Skill Injector</span>
           </div>
           <span className="text-[10px] text-[#64748b] font-mono font-medium">
             Targets: {selectedSessionIds.length}
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-1.5 mb-2.5 max-h-28 overflow-y-auto">
-          {AVAILABLE_SKILLS.map((skill) => {
-            const isChecked = selectedSkillsToInject.includes(skill.id);
-            return (
-              <div
-                key={skill.id}
-                onClick={() => handleToggleSkill(skill.id)}
-                className={`px-2 py-1.5 rounded-md border text-[10px] font-mono cursor-pointer transition-all truncate shadow-xs ${
-                  isChecked
-                    ? 'bg-[#e11d48]/10 border-[#e11d48] text-[#e11d48] font-bold'
-                    : 'bg-[#ffffff] border-[#e2e8f0] text-[#475569] hover:border-[#cbd5e1] hover:bg-[#f8fafc]'
-                }`}
-                title={skill.description}
-              >
-                {skill.name}
-              </div>
-            );
-          })}
+        {/* Freeform Tag / Custom Skill Input */}
+        <form onSubmit={handleAddCustomSkillToQueue} className="flex items-center space-x-1.5">
+          <input
+            type="text"
+            placeholder="Type any skill name & press Enter..."
+            value={customSkillInput}
+            onChange={(e) => setCustomSkillInput(e.target.value)}
+            className="flex-1 bg-[#f8fafc] border border-[#cbd5e1] rounded-md text-xs px-2.5 py-1.5 text-[#0f172a] placeholder-[#94a3b8] focus:outline-none focus:border-[#e11d48] focus:bg-[#ffffff] font-mono"
+          />
+          <button
+            type="submit"
+            disabled={!customSkillInput.trim()}
+            className="px-2.5 py-1.5 rounded-md bg-[#f1f5f9] hover:bg-[#e2e8f0] border border-[#cbd5e1] text-xs font-semibold text-[#0f172a] disabled:opacity-40 transition-colors"
+          >
+            Add
+          </button>
+        </form>
+
+        {/* Queue of Skills to be Injected */}
+        {activeSkillsQueue.length > 0 && (
+          <div className="space-y-1">
+            <div className="text-[10px] font-mono text-[#64748b]">Selected to Inject:</div>
+            <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
+              {activeSkillsQueue.map((s) => (
+                <span
+                  key={s}
+                  className="text-[10px] font-mono pl-2 pr-1.5 py-0.5 rounded-md bg-[#e11d48]/10 text-[#e11d48] border border-[#e11d48]/30 flex items-center space-x-1 font-semibold"
+                >
+                  <span>{s}</span>
+                  <button
+                    onClick={() => handleRemoveSkillFromQueue(s)}
+                    className="hover:text-[#be123c]"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Quick Suggestion Chips from Installed Local Skills */}
+        <div className="space-y-1">
+          <div className="text-[10px] font-mono text-[#94a3b8]">Quick Suggest (Local Skills):</div>
+          <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+            {AVAILABLE_SKILLS.map((skill) => {
+              const isQueued = activeSkillsQueue.includes(skill.id);
+              return (
+                <button
+                  key={skill.id}
+                  onClick={() => {
+                    if (isQueued) {
+                      handleRemoveSkillFromQueue(skill.id);
+                    } else {
+                      setActiveSkillsQueue((prev) => [...prev, skill.id]);
+                    }
+                  }}
+                  className={`text-[9px] font-mono px-2 py-0.5 rounded border transition-all ${
+                    isQueued
+                      ? 'bg-[#e11d48] text-white border-[#e11d48] font-bold'
+                      : 'bg-[#ffffff] text-[#475569] border-[#e2e8f0] hover:border-[#cbd5e1] hover:bg-[#f8fafc]'
+                  }`}
+                  title={skill.description}
+                >
+                  {isQueued ? `✓ ${skill.name}` : `+ ${skill.name}`}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
+        {/* Action Button */}
         <button
-          onClick={handleApplySkills}
-          disabled={selectedSkillsToInject.length === 0 || selectedSessionIds.length === 0}
+          onClick={handleApplySkillsToSelected}
+          disabled={activeSkillsQueue.length === 0 || selectedSessionIds.length === 0}
           className="w-full py-2 rounded-md bg-[#e11d48] hover:bg-[#be123c] text-xs font-bold text-[#ffffff] disabled:opacity-40 disabled:cursor-not-allowed transition-all font-mono shadow-xs"
         >
-          Inject Skills to Selected ({selectedSessionIds.length})
+          Inject {activeSkillsQueue.length} Skill(s) to Selected ({selectedSessionIds.length})
         </button>
       </div>
     </aside>

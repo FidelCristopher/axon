@@ -22,6 +22,9 @@ export const AVAILABLE_SKILLS: AgentSkill[] = [
   { id: 'git-release', name: 'git-release', description: 'Conventional Commits 1.0.0 & worktree branch hygiene', category: 'git' },
   { id: 'rust-tauri', name: 'rust-tauri', description: 'Tauri v2 native desktop shell & PTY process integration', category: 'system' },
   { id: 'nextjs-web', name: 'nextjs-web', description: 'Next.js 15 App Router & Server Components architecture', category: 'web' },
+  { id: 'ai-engineer', name: 'ai-engineer', description: 'LLM orchestration, structured outputs & agent patterns', category: 'system' },
+  { id: 'blender-bridge', name: 'blender-bridge', description: 'Blender 3D desktop bridge & PBR procedural assets', category: 'ui' },
+  { id: 'clone-website', name: 'clone-website', description: 'Reverse-engineer and clone websites pixel-perfect', category: 'web' },
 ];
 
 export interface ProjectWorkspace {
@@ -189,6 +192,8 @@ interface AxonState {
   removeEntity: (id: string) => void;
   updateEntityStatus: (id: string, status: NodeStatus, message?: string) => void;
   applySkillsToSelected: (skillIds: string[]) => void;
+  addSkillToEntity: (entityId: string, skillName: string) => void;
+  removeSkillFromEntity: (entityId: string, skillName: string) => void;
   compactEntityMemory: (id: string) => void;
   compactSelectedEntities: () => void;
   compactAllEntities: () => void;
@@ -298,6 +303,27 @@ export const useAxonStore = create<AxonState>((set, get) => {
           if (!state.selectedSessionIds.includes(e.id)) return e;
           const merged = Array.from(new Set([...e.skills, ...skillIds]));
           return { ...e, skills: merged };
+        }),
+      }));
+    },
+
+    addSkillToEntity: (entityId, skillName) => {
+      const cleanSkill = skillName.trim();
+      if (!cleanSkill) return;
+      set((state) => ({
+        entities: state.entities.map((e) => {
+          if (e.id !== entityId) return e;
+          if (e.skills.includes(cleanSkill)) return e;
+          return { ...e, skills: [...e.skills, cleanSkill] };
+        }),
+      }));
+    },
+
+    removeSkillFromEntity: (entityId, skillName) => {
+      set((state) => ({
+        entities: state.entities.map((e) => {
+          if (e.id !== entityId) return e;
+          return { ...e, skills: e.skills.filter((s) => s !== skillName) };
         }),
       }));
     },
