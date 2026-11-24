@@ -26,19 +26,19 @@ export const EntityGraphCanvas: React.FC = () => {
     const generatedNodes: Node[] = [];
     const generatedEdges: Edge[] = [];
 
-    // Distinct, clean positions for pure session nodes
+    // Organic, clean constellation positions on pure white canvas
     const positions: Record<string, { x: number; y: number }> = {
       'hub-main': { x: 380, y: 280 },
-      'node-dev-1': { x: 680, y: 150 },
-      'node-dev-2': { x: 680, y: 410 },
-      'node-qa': { x: 380, y: 520 },
-      'node-designer': { x: 120, y: 410 },
+      'node-dev-1': { x: 680, y: 160 },
+      'node-dev-2': { x: 680, y: 400 },
+      'node-qa': { x: 380, y: 500 },
+      'node-designer': { x: 120, y: 400 },
     };
 
     entities.forEach((entity, index) => {
       const pos = positions[entity.id] || {
-        x: 380 + Math.cos((index * 2 * Math.PI) / entities.length) * 260,
-        y: 280 + Math.sin((index * 2 * Math.PI) / entities.length) * 260,
+        x: 380 + Math.cos((index * 2 * Math.PI) / Math.max(1, entities.length)) * 260,
+        y: 280 + Math.sin((index * 2 * Math.PI) / Math.max(1, entities.length)) * 260,
       };
 
       generatedNodes.push({
@@ -63,13 +63,13 @@ export const EntityGraphCanvas: React.FC = () => {
         source: rel.source,
         target: rel.target,
         animated: isConnectedToSelected,
-        label: undefined, // Pure line without text
+        label: undefined,
         style: {
-          stroke: isConnectedToSelected ? '#e11d48' : '#222222',
-          strokeWidth: isConnectedToSelected ? 2.2 : 1,
-          opacity: isConnectedToSelected ? 1 : 0.4,
+          stroke: isConnectedToSelected ? '#e11d48' : '#e2e8f0',
+          strokeWidth: isConnectedToSelected ? 2.2 : 1.2,
+          opacity: isConnectedToSelected ? 1 : 0.7,
           filter: isConnectedToSelected
-            ? 'drop-shadow(0 0 6px rgba(225, 29, 72, 0.75))'
+            ? 'drop-shadow(0 2px 4px rgba(225, 29, 72, 0.35))'
             : 'none',
         },
         markerEnd: isConnectedToSelected
@@ -87,7 +87,7 @@ export const EntityGraphCanvas: React.FC = () => {
   }, [entities, relationships, selectedEntityId]);
 
   return (
-    <div className="flex-1 h-full bg-[#000000] relative select-none">
+    <div className="flex-1 h-full bg-[#ffffff] relative select-none">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -98,21 +98,21 @@ export const EntityGraphCanvas: React.FC = () => {
         maxZoom={2.0}
         proOptions={{ hideAttribution: true }}
       >
-        {/* Pitch black dot matrix background */}
-        <Background color="#161616" gap={24} size={1} />
+        {/* Soft light gray dot matrix grid */}
+        <Background color="#e2e8f0" gap={24} size={1.2} />
         <Controls
           position="bottom-right"
-          className="!bg-[#0a0a0a] !border-[#222222] !rounded-md !shadow-2xl [&>button]:!bg-[#0a0a0a] [&>button]:!border-[#222222] [&>button]:!text-[#888888] hover:[&>button]:!text-[#ffffff] !mr-4 !mb-4"
+          className="!bg-[#ffffff] !border-[#e2e8f0] !rounded-md !shadow-md [&>button]:!bg-[#ffffff] [&>button]:!border-[#e2e8f0] [&>button]:!text-[#64748b] hover:[&>button]:!text-[#0f172a] !mr-4 !mb-4"
         />
       </ReactFlow>
 
-      {/* Top Left Title */}
+      {/* Top Left Title on White Background */}
       <div className="absolute top-5 left-6 pointer-events-none">
-        <h2 className="text-sm font-semibold tracking-tight text-[#f5f5f5]">
+        <h2 className="text-sm font-bold tracking-tight text-[#0f172a]">
           Graph Relationship Visualization
         </h2>
-        <p className="text-[10px] font-mono text-[#666666] mt-0.5">
-          Pure Black Canvas • Zero-Idle Telemetry Bus
+        <p className="text-[10px] font-mono text-[#64748b] mt-0.5">
+          Pure White Canvas • Isolated Repository Topology
         </p>
       </div>
     </div>

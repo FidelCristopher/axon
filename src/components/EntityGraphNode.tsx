@@ -19,25 +19,23 @@ export const EntityGraphNode: React.FC<EntityGraphNodeProps> = memo(({ data }) =
 
   return (
     <div className="relative flex items-center group cursor-pointer select-none">
-      {/* Target Connection Handle */}
       <Handle
         type="target"
         position={Position.Left}
         className="!w-1.5 !h-1.5 !bg-transparent !border-none"
       />
 
-      {/* Solid Dot Node */}
+      {/* Solid Circular Dot Node */}
       <div className="relative flex items-center justify-center">
-        {/* Pulsing ring if WORKING or SELECTED */}
         {isSelected && (
           <div 
-            className="absolute -inset-1.5 rounded-full opacity-60 animate-ping"
+            className="absolute -inset-1.5 rounded-full opacity-40 animate-ping"
             style={{ backgroundColor: '#e11d48' }}
           />
         )}
         {isWorking && (
           <div 
-            className="absolute -inset-2 rounded-full opacity-40 animate-pulse"
+            className="absolute -inset-2 rounded-full opacity-35 animate-pulse"
             style={{ backgroundColor: nodeColor }}
           />
         )}
@@ -46,12 +44,12 @@ export const EntityGraphNode: React.FC<EntityGraphNodeProps> = memo(({ data }) =
         <div
           className={`rounded-full transition-transform duration-200 ${
             isSelected
-              ? 'w-5 h-5 ring-2 ring-white shadow-[0_0_12px_rgba(225,29,72,0.8)] scale-110'
-              : 'w-4 h-4 hover:scale-125'
+              ? 'w-5 h-5 ring-2 ring-[#e11d48] shadow-[0_2px_8px_rgba(225,29,72,0.4)] scale-110'
+              : 'w-4 h-4 hover:scale-125 shadow-sm'
           }`}
           style={{
             backgroundColor: isSelected ? '#e11d48' : nodeColor,
-            border: isSelected ? '2px solid #ffffff' : '1.5px solid rgba(255,255,255,0.25)',
+            border: isSelected ? '2px solid #ffffff' : '1.5px solid #ffffff',
           }}
         />
       </div>
@@ -59,18 +57,18 @@ export const EntityGraphNode: React.FC<EntityGraphNodeProps> = memo(({ data }) =
       {/* Node Label beside dot */}
       <div className="ml-2 flex flex-col">
         <span
-          className={`text-[11px] font-medium leading-none tracking-tight transition-colors whitespace-nowrap ${
+          className={`text-[12px] font-medium leading-tight tracking-tight transition-colors whitespace-nowrap ${
             isSelected
-              ? 'text-[#ffffff] font-semibold underline decoration-[#e11d48] underline-offset-4'
-              : 'text-[#e5e5e5] group-hover:text-[#ffffff]'
+              ? 'text-[#0f172a] font-bold underline decoration-[#e11d48] underline-offset-4'
+              : 'text-[#334155] group-hover:text-[#0f172a]'
           }`}
         >
           {entity.name}
         </span>
         {entity.status !== 'IDLE' && (
           <span
-            className={`text-[8px] font-mono mt-0.5 tracking-wider ${
-              isWorking ? 'text-[#e11d48] animate-pulse font-bold' : isCompacting ? 'text-[#f59e0b]' : 'text-[#888888]'
+            className={`text-[9px] font-mono mt-0.5 tracking-wider font-semibold ${
+              isWorking ? 'text-[#e11d48] animate-pulse' : isCompacting ? 'text-[#f59e0b]' : 'text-[#64748b]'
             }`}
           >
             [{entity.status}]
@@ -78,7 +76,6 @@ export const EntityGraphNode: React.FC<EntityGraphNodeProps> = memo(({ data }) =
         )}
       </div>
 
-      {/* Source Connection Handle */}
       <Handle
         type="source"
         position={Position.Right}

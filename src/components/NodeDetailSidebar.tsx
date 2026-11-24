@@ -58,19 +58,19 @@ export const NodeDetailSidebar: React.FC = () => {
   const allSelected = entities.length > 0 && selectedSessionIds.length === entities.length;
 
   return (
-    <aside className="w-88 shrink-0 bg-[#080808] border-l border-[#1a1a1a] flex flex-col h-full select-none text-xs z-10">
+    <aside className="w-88 shrink-0 bg-[#f8fafc] border-l border-[#e2e8f0] flex flex-col h-full select-none text-xs z-10 shadow-xs">
       {/* 1. Header & Fast Memory Compact Actions */}
-      <div className="p-4 border-b border-[#1a1a1a] bg-[#000000]">
+      <div className="p-4 border-b border-[#e2e8f0] bg-[#ffffff]">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-2">
             <SlidersHorizontal className="w-4 h-4 text-[#e11d48]" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#ffffff] font-mono">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#0f172a] font-mono">
               Inspector & Actions
             </span>
           </div>
           <button
             onClick={() => setIsAddOpen(!isAddOpen)}
-            className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#e11d48]/10 hover:bg-[#e11d48]/20 border border-[#e11d48]/50 text-[#e11d48] text-xs font-medium transition-all"
+            className="flex items-center space-x-1 px-2.5 py-1 rounded-md bg-[#e11d48]/10 hover:bg-[#e11d48]/20 border border-[#e11d48]/30 text-[#e11d48] text-xs font-semibold transition-all shadow-xs"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Branch</span>
@@ -81,20 +81,20 @@ export const NodeDetailSidebar: React.FC = () => {
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={compactAllEntities}
-            className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded bg-[#111111] hover:bg-[#1a1a1a] border border-[#262626] text-xs font-medium text-[#f5f5f5] transition-all"
+            className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-md bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] text-xs font-semibold text-[#0f172a] shadow-xs transition-all"
             title="Compact memory transcripts across all sessions"
           >
-            <Scissors className="w-3 h-3 text-[#e11d48]" />
+            <Scissors className="w-3.5 h-3.5 text-[#e11d48]" />
             <span>Compact All</span>
           </button>
 
           <button
             onClick={compactSelectedEntities}
             disabled={selectedSessionIds.length === 0}
-            className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded bg-[#111111] hover:bg-[#1a1a1a] border border-[#262626] text-xs font-medium text-[#f5f5f5] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-md bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] text-xs font-semibold text-[#0f172a] disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-all"
             title="Compact memory for checked sessions only"
           >
-            <Scissors className="w-3 h-3 text-[#f59e0b]" />
+            <Scissors className="w-3.5 h-3.5 text-[#f59e0b]" />
             <span>Compact Select</span>
           </button>
         </div>
@@ -102,7 +102,7 @@ export const NodeDetailSidebar: React.FC = () => {
 
       {/* 2. Inline Form: Add New Branch */}
       {isAddOpen && (
-        <form onSubmit={handleCreateBranch} className="p-3 bg-[#111111] border-b border-[#222222] space-y-2">
+        <form onSubmit={handleCreateBranch} className="p-3 bg-[#ffffff] border-b border-[#e2e8f0] space-y-2 shadow-inner">
           <div className="text-[10px] font-mono font-bold text-[#e11d48] uppercase">
             Create Synapse Branch
           </div>
@@ -111,14 +111,14 @@ export const NodeDetailSidebar: React.FC = () => {
             placeholder="Branch Name (e.g., Dev 3 - Audio)"
             value={newBranchName}
             onChange={(e) => setNewBranchName(e.target.value)}
-            className="w-full bg-[#000000] border border-[#222222] rounded text-xs px-2.5 py-1 text-[#ffffff] placeholder-[#555555] focus:outline-none focus:border-[#e11d48]"
+            className="w-full bg-[#f8fafc] border border-[#cbd5e1] rounded-md text-xs px-2.5 py-1 text-[#0f172a] placeholder-[#94a3b8] focus:outline-none focus:border-[#e11d48]"
             autoFocus
           />
           <div className="grid grid-cols-2 gap-2">
             <select
               value={newBranchType}
               onChange={(e) => setNewBranchType(e.target.value as GraphEntity['type'])}
-              className="bg-[#000000] border border-[#222222] rounded text-xs px-2 py-1 text-[#ffffff] focus:outline-none focus:border-[#e11d48]"
+              className="bg-[#f8fafc] border border-[#cbd5e1] rounded-md text-xs px-2 py-1 text-[#0f172a] focus:outline-none focus:border-[#e11d48]"
             >
               <option value="dev">Role: Dev</option>
               <option value="qa">Role: QA</option>
@@ -130,20 +130,20 @@ export const NodeDetailSidebar: React.FC = () => {
               placeholder="Git Worktree"
               value={newBranchWorktree}
               onChange={(e) => setNewBranchWorktree(e.target.value)}
-              className="bg-[#000000] border border-[#222222] rounded text-xs px-2 py-1 text-[#ffffff] placeholder-[#555555] focus:outline-none focus:border-[#e11d48]"
+              className="bg-[#f8fafc] border border-[#cbd5e1] rounded-md text-xs px-2 py-1 text-[#0f172a] placeholder-[#94a3b8] focus:outline-none focus:border-[#e11d48]"
             />
           </div>
           <div className="flex justify-end space-x-2 pt-1">
             <button
               type="button"
               onClick={() => setIsAddOpen(false)}
-              className="px-2.5 py-1 rounded text-xs text-[#777777] hover:text-[#ffffff]"
+              className="px-2.5 py-1 rounded text-xs text-[#64748b] hover:text-[#0f172a]"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-3 py-1 rounded bg-[#e11d48] hover:bg-[#be123c] text-xs font-semibold text-[#ffffff]"
+              className="px-3 py-1 rounded-md bg-[#e11d48] hover:bg-[#be123c] text-xs font-bold text-[#ffffff] shadow-xs"
             >
               Spawn Node
             </button>
@@ -153,13 +153,13 @@ export const NodeDetailSidebar: React.FC = () => {
 
       {/* 3. Pi Sessions List with Multi-Select */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        <div className="flex items-center justify-between pb-1 text-xs text-[#888888]">
-          <span className="font-semibold text-[11px] uppercase tracking-wider text-[#666666] font-mono">
+        <div className="flex items-center justify-between pb-1 text-xs text-[#64748b]">
+          <span className="font-bold text-[11px] uppercase tracking-wider text-[#64748b] font-mono">
             Pi Sessions ({selectedSessionIds.length}/{entities.length})
           </span>
           <button
             onClick={() => selectAllSessions(!allSelected)}
-            className="text-[11px] text-[#e11d48] hover:underline flex items-center space-x-1"
+            className="text-[11px] font-semibold text-[#e11d48] hover:underline flex items-center space-x-1"
           >
             {allSelected ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />}
             <span>{allSelected ? 'Deselect All' : 'Select All'}</span>
@@ -175,12 +175,12 @@ export const NodeDetailSidebar: React.FC = () => {
           return (
             <div
               key={session.id}
-              className={`p-2.5 rounded border transition-all ${
+              className={`p-2.5 rounded-md border transition-all shadow-xs ${
                 isFocusedInGraph
-                  ? 'bg-[#121212] border-[#e11d48] shadow-sm'
+                  ? 'bg-[#ffffff] border-[#e11d48] ring-1 ring-[#e11d48]'
                   : isSelected
-                  ? 'bg-[#0f0f0f] border-[#333333]'
-                  : 'bg-[#000000] border-[#1f1f1f] hover:border-[#2b2b2b]'
+                  ? 'bg-[#ffffff] border-[#cbd5e1]'
+                  : 'bg-[#ffffff] border-[#e2e8f0] hover:border-[#cbd5e1]'
               }`}
             >
               <div className="flex items-center justify-between">
@@ -191,15 +191,15 @@ export const NodeDetailSidebar: React.FC = () => {
                   {isSelected ? (
                     <CheckSquare className="w-3.5 h-3.5 text-[#e11d48] shrink-0" />
                   ) : (
-                    <Square className="w-3.5 h-3.5 text-[#444444] shrink-0" />
+                    <Square className="w-3.5 h-3.5 text-[#94a3b8] shrink-0" />
                   )}
                   <span
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedEntityId(session.id);
                     }}
-                    className={`text-xs font-medium truncate ${
-                      isFocusedInGraph ? 'text-[#ffffff] font-bold underline decoration-[#e11d48]' : 'text-[#e5e5e5]'
+                    className={`text-xs font-semibold truncate ${
+                      isFocusedInGraph ? 'text-[#e11d48] underline' : 'text-[#0f172a]'
                     }`}
                   >
                     {session.name}
@@ -208,12 +208,12 @@ export const NodeDetailSidebar: React.FC = () => {
 
                 <div className="flex items-center space-x-1.5">
                   <span
-                    className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${
+                    className={`text-[9px] font-mono px-1.5 py-0.2 rounded border font-semibold ${
                       isWorking
-                        ? 'bg-[#e11d48]/20 text-[#e11d48] border-[#e11d48]/50 animate-pulse font-bold'
+                        ? 'bg-[#e11d48]/10 text-[#e11d48] border-[#e11d48]/40 animate-pulse'
                         : isCompacting
-                        ? 'bg-[#f59e0b]/20 text-[#f59e0b] border-[#f59e0b]/50'
-                        : 'bg-[#141414] text-[#777777] border-[#222222]'
+                        ? 'bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/40'
+                        : 'bg-[#f1f5f9] text-[#64748b] border-[#e2e8f0]'
                     }`}
                   >
                     [{session.status}]
@@ -224,7 +224,7 @@ export const NodeDetailSidebar: React.FC = () => {
                       setSelectedEntityId(session.id);
                       setIsTerminalModalOpen(true);
                     }}
-                    className="p-1 rounded text-[#777777] hover:text-[#e11d48] hover:bg-[#1a1a1a]"
+                    className="p-1 rounded hover:bg-[#f1f5f9] text-[#64748b] hover:text-[#e11d48] transition-colors"
                     title="Inspect Live Terminal"
                   >
                     <Terminal className="w-3 h-3" />
@@ -233,7 +233,7 @@ export const NodeDetailSidebar: React.FC = () => {
                   {session.id !== 'hub-main' && (
                     <button
                       onClick={() => removeEntity(session.id)}
-                      className="p-1 rounded text-[#555555] hover:text-[#ef4444] hover:bg-[#1a1a1a]"
+                      className="p-1 rounded hover:bg-[#f1f5f9] text-[#94a3b8] hover:text-[#ef4444] transition-colors"
                       title="Remove branch"
                     >
                       <Trash2 className="w-3 h-3" />
@@ -242,7 +242,7 @@ export const NodeDetailSidebar: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-1 flex items-center justify-between text-[10px] text-[#666666] font-mono">
+              <div className="mt-1 flex items-center justify-between text-[10px] text-[#64748b] font-mono">
                 <span className="flex items-center space-x-1 truncate">
                   <GitBranch className="w-2.5 h-2.5" />
                   <span className="truncate">{session.worktree}</span>
@@ -256,7 +256,7 @@ export const NodeDetailSidebar: React.FC = () => {
                   {session.skills.map((skillId) => (
                     <span
                       key={skillId}
-                      className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-[#0a0a0a] text-[#888888] border border-[#222222]"
+                      className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-[#f1f5f9] text-[#475569] border border-[#e2e8f0]"
                     >
                       {skillId}
                     </span>
@@ -269,13 +269,13 @@ export const NodeDetailSidebar: React.FC = () => {
       </div>
 
       {/* 4. Batch Skill Injector */}
-      <div className="p-3 border-t border-[#1a1a1a] bg-[#000000]">
+      <div className="p-3.5 border-t border-[#e2e8f0] bg-[#ffffff] shadow-xs">
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-1.5 text-xs font-semibold text-[#ffffff] font-mono">
+          <div className="flex items-center space-x-1.5 text-xs font-bold text-[#0f172a] font-mono">
             <Sparkles className="w-3.5 h-3.5 text-[#e11d48]" />
             <span>Batch Skill Injector</span>
           </div>
-          <span className="text-[10px] text-[#666666] font-mono">
+          <span className="text-[10px] text-[#64748b] font-mono font-medium">
             Targets: {selectedSessionIds.length}
           </span>
         </div>
@@ -287,10 +287,10 @@ export const NodeDetailSidebar: React.FC = () => {
               <div
                 key={skill.id}
                 onClick={() => handleToggleSkill(skill.id)}
-                className={`px-2 py-1.5 rounded border text-[10px] font-mono cursor-pointer transition-all truncate ${
+                className={`px-2 py-1.5 rounded-md border text-[10px] font-mono cursor-pointer transition-all truncate shadow-xs ${
                   isChecked
-                    ? 'bg-[#e11d48]/15 border-[#e11d48] text-[#ffffff] font-semibold'
-                    : 'bg-[#0a0a0a] border-[#222222] text-[#888888] hover:border-[#333333]'
+                    ? 'bg-[#e11d48]/10 border-[#e11d48] text-[#e11d48] font-bold'
+                    : 'bg-[#ffffff] border-[#e2e8f0] text-[#475569] hover:border-[#cbd5e1] hover:bg-[#f8fafc]'
                 }`}
                 title={skill.description}
               >
@@ -303,7 +303,7 @@ export const NodeDetailSidebar: React.FC = () => {
         <button
           onClick={handleApplySkills}
           disabled={selectedSkillsToInject.length === 0 || selectedSessionIds.length === 0}
-          className="w-full py-2 rounded bg-[#e11d48] hover:bg-[#be123c] text-xs font-semibold text-[#ffffff] disabled:opacity-40 disabled:cursor-not-allowed transition-all font-mono"
+          className="w-full py-2 rounded-md bg-[#e11d48] hover:bg-[#be123c] text-xs font-bold text-[#ffffff] disabled:opacity-40 disabled:cursor-not-allowed transition-all font-mono shadow-xs"
         >
           Inject Skills to Selected ({selectedSessionIds.length})
         </button>

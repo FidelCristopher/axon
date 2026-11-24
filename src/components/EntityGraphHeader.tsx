@@ -17,45 +17,45 @@ export const EntityGraphHeader: React.FC = () => {
   };
 
   return (
-    <header className="h-14 bg-[#000000] border-b border-[#1a1a1a] px-6 flex items-center justify-between select-none z-20">
+    <header className="h-14 bg-[#ffffff] border-b border-[#e2e8f0] px-6 flex items-center justify-between select-none z-20 shadow-xs">
       {/* Brand Title */}
       <div className="flex items-center space-x-3">
-        <h1 className="text-base font-black tracking-widest text-[#f5f5f5] uppercase font-mono">
+        <h1 className="text-base font-black tracking-widest text-[#0f172a] uppercase font-mono">
           AXON
         </h1>
-        <span className="text-[10px] font-mono text-[#555555] px-2 py-0.5 border border-[#222222] rounded bg-[#0a0a0a]">
+        <span className="text-[10px] font-mono text-[#64748b] px-2 py-0.5 border border-[#e2e8f0] rounded bg-[#f8fafc]">
           Relationship Graph v1.0
         </span>
       </div>
 
       {/* Segmented View Mode Tabs: [Graph] [Split] [Workbench] */}
-      <div className="flex items-center bg-[#0a0a0a] p-1 rounded-md border border-[#222222]">
+      <div className="flex items-center bg-[#f1f5f9] p-1 rounded-md border border-[#e2e8f0]">
         <button
           onClick={() => setActiveViewTab('graph')}
-          className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+          className={`px-3.5 py-1 rounded text-xs font-semibold transition-all ${
             activeViewTab === 'graph'
-              ? 'bg-[#1f1f1f] text-[#ffffff] shadow-sm'
-              : 'text-[#777777] hover:text-[#cccccc]'
+              ? 'bg-[#ffffff] text-[#0f172a] shadow-xs'
+              : 'text-[#64748b] hover:text-[#0f172a]'
           }`}
         >
           Graph
         </button>
         <button
           onClick={() => setActiveViewTab('split')}
-          className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+          className={`px-3.5 py-1 rounded text-xs font-semibold transition-all ${
             activeViewTab === 'split'
-              ? 'bg-[#1f1f1f] text-[#ffffff] shadow-sm'
-              : 'text-[#777777] hover:text-[#cccccc]'
+              ? 'bg-[#ffffff] text-[#0f172a] shadow-xs'
+              : 'text-[#64748b] hover:text-[#0f172a]'
           }`}
         >
           Split
         </button>
         <button
           onClick={() => setActiveViewTab('workbench')}
-          className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+          className={`px-3.5 py-1 rounded text-xs font-semibold transition-all ${
             activeViewTab === 'workbench'
-              ? 'bg-[#1f1f1f] text-[#ffffff] shadow-sm'
-              : 'text-[#777777] hover:text-[#cccccc]'
+              ? 'bg-[#ffffff] text-[#0f172a] shadow-xs'
+              : 'text-[#64748b] hover:text-[#0f172a]'
           }`}
         >
           Workbench
@@ -63,19 +63,19 @@ export const EntityGraphHeader: React.FC = () => {
       </div>
 
       {/* Controls: Refresh & Fullscreen */}
-      <div className="flex items-center space-x-3 text-xs">
+      <div className="flex items-center space-x-2 text-xs">
         <button
           onClick={() => window.location.reload()}
-          className="flex items-center space-x-1.5 bg-[#0a0a0a] border border-[#222222] px-3 py-1.5 rounded-md text-[#aaaaaa] hover:text-[#ffffff] hover:border-[#333333] transition-colors"
+          className="flex items-center space-x-1.5 bg-[#ffffff] border border-[#e2e8f0] px-3 py-1.5 rounded-md text-[#64748b] hover:text-[#0f172a] hover:border-[#cbd5e1] hover:bg-[#f8fafc] shadow-xs transition-colors"
           title="Refresh Network Graph"
         >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span className="text-[11px]">Refresh</span>
+          <RotateCcw className="w-3.5 h-3.5 text-[#64748b]" />
+          <span className="text-[11px] font-medium">Refresh</span>
         </button>
 
         <button
           onClick={handleFullscreen}
-          className="bg-[#0a0a0a] border border-[#222222] p-1.5 rounded-md text-[#aaaaaa] hover:text-[#ffffff] hover:border-[#333333] transition-colors"
+          className="bg-[#ffffff] border border-[#e2e8f0] p-1.5 rounded-md text-[#64748b] hover:text-[#0f172a] hover:border-[#cbd5e1] hover:bg-[#f8fafc] shadow-xs transition-colors"
           title="Toggle Fullscreen"
         >
           <Maximize className="w-3.5 h-3.5" />

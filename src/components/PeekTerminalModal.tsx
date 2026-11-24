@@ -25,7 +25,7 @@ export const PeekTerminalModal: React.FC = () => {
       `Repository: ChineseLearning | Worktree: ${entity.worktree}`,
       `UUID: ${entity.uuid}`,
       `Skills Mounted: [${entity.skills.join(', ') || 'default'}]`,
-      `Zero-Idle Bus: ACTIVE | Token: ${((entity.tokenUsed / entity.tokenMax) * 100).toFixed(1)}%`,
+      `Zero-Idle Bus: ACTIVE | Memory: ${((entity.tokenUsed / entity.tokenMax) * 100).toFixed(1)}%`,
       `--- Standby for Task Input ---`,
     ]);
   }, [selectedEntityId, isTerminalModalOpen]);
@@ -74,20 +74,20 @@ export const PeekTerminalModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs select-none">
-      <div className="w-[740px] max-w-[92vw] h-[520px] bg-[#000000] border border-[#222222] rounded-lg shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs select-none">
+      <div className="w-[740px] max-w-[92vw] h-[520px] bg-[#ffffff] border border-[#cbd5e1] rounded-lg shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Terminal Header */}
-        <div className="px-4 py-3 bg-[#0a0a0a] border-b border-[#1f1f1f] flex items-center justify-between">
+        <div className="px-4 py-3 bg-[#f8fafc] border-b border-[#e2e8f0] flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
             <div className="w-2.5 h-2.5 rounded-full bg-[#e11d48] animate-pulse" />
             <div>
               <div className="flex items-center space-x-2">
-                <span className="text-xs font-semibold text-[#ffffff]">{entity.name}</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#141414] text-[#e11d48] border border-[#262626]">
+                <span className="text-xs font-bold text-[#0f172a]">{entity.name}</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#f1f5f9] text-[#e11d48] border border-[#e2e8f0] font-semibold">
                   [{entity.status}]
                 </span>
               </div>
-              <div className="flex items-center space-x-2 text-[10px] text-[#777777] font-mono">
+              <div className="flex items-center space-x-2 text-[10px] text-[#64748b] font-mono">
                 <span className="flex items-center space-x-1">
                   <GitBranch className="w-2.5 h-2.5" />
                   <span>{entity.worktree}</span>
@@ -101,7 +101,7 @@ export const PeekTerminalModal: React.FC = () => {
           <div className="flex items-center space-x-2">
             <button
               onClick={handleManualCompact}
-              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#111111] hover:bg-[#1a1a1a] border border-[#222222] text-xs text-[#aaaaaa] hover:text-[#ffffff] transition-all"
+              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] text-xs font-semibold text-[#0f172a] shadow-xs transition-all"
               title="Compact session memory"
             >
               <Scissors className="w-3 h-3 text-[#f59e0b]" />
@@ -109,7 +109,7 @@ export const PeekTerminalModal: React.FC = () => {
             </button>
             <button
               onClick={() => setIsTerminalModalOpen(false)}
-              className="p-1 rounded hover:bg-[#1a1a1a] text-[#777777] hover:text-[#ffffff] transition-colors"
+              className="p-1 rounded hover:bg-[#f1f5f9] text-[#64748b] hover:text-[#0f172a] transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -117,7 +117,7 @@ export const PeekTerminalModal: React.FC = () => {
         </div>
 
         {/* Console Logs */}
-        <div className="flex-1 bg-[#000000] p-4 font-mono text-xs overflow-y-auto space-y-1 text-[#e5e5e5]">
+        <div className="flex-1 bg-[#0f172a] p-4 font-mono text-xs overflow-y-auto space-y-1 text-[#f8fafc]">
           {terminalLogs.map((log, index) => {
             const isUser = log.startsWith('> User');
             const isTool = log.startsWith('[tool');
@@ -128,12 +128,12 @@ export const PeekTerminalModal: React.FC = () => {
                 key={index}
                 className={`leading-relaxed ${
                   isUser
-                    ? 'text-[#e11d48] font-semibold'
+                    ? 'text-[#38bdf8] font-bold'
                     : isTool
-                    ? 'text-[#f59e0b]'
+                    ? 'text-[#fbbf24]'
                     : isAgent
-                    ? 'text-[#10b981]'
-                    : 'text-[#888888]'
+                    ? 'text-[#34d399]'
+                    : 'text-[#94a3b8]'
                 }`}
               >
                 {log}
@@ -144,20 +144,20 @@ export const PeekTerminalModal: React.FC = () => {
         </div>
 
         {/* Input Bar */}
-        <form onSubmit={handleSendPrompt} className="p-3 bg-[#0a0a0a] border-t border-[#1f1f1f] flex items-center space-x-2">
-          <div className="text-[#e11d48] font-mono text-xs pl-1">&gt;</div>
+        <form onSubmit={handleSendPrompt} className="p-3 bg-[#ffffff] border-t border-[#e2e8f0] flex items-center space-x-2">
+          <div className="text-[#e11d48] font-mono text-xs font-bold pl-1">&gt;</div>
           <input
             type="text"
             placeholder={`Execute directive on ${entity.name}... (Zero-Idle Trigger)`}
             value={inputPrompt}
             onChange={(e) => setInputPrompt(e.target.value)}
-            className="flex-1 bg-[#000000] border border-[#222222] rounded text-xs px-3 py-1.5 text-[#ffffff] placeholder-[#555555] focus:outline-none focus:border-[#e11d48] font-mono"
+            className="flex-1 bg-[#f8fafc] border border-[#cbd5e1] rounded-md text-xs px-3 py-1.5 text-[#0f172a] placeholder-[#94a3b8] focus:outline-none focus:border-[#e11d48] focus:bg-[#ffffff] font-mono"
             autoFocus
           />
           <button
             type="submit"
             disabled={!inputPrompt.trim()}
-            className="px-3.5 py-1.5 rounded bg-[#e11d48] hover:bg-[#be123c] text-xs font-semibold text-[#ffffff] disabled:opacity-40 flex items-center space-x-1"
+            className="px-3.5 py-1.5 rounded-md bg-[#e11d48] hover:bg-[#be123c] text-xs font-bold text-[#ffffff] disabled:opacity-40 shadow-xs flex items-center space-x-1 font-mono"
           >
             <Send className="w-3 h-3" />
             <span>Send</span>
