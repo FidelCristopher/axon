@@ -3,8 +3,6 @@ import { useAxonStore } from '../store/axonStore';
 import initialPiSessions from '../data/piSessionsData.json';
 import { 
   Search, 
-  HardDrive,
-  RefreshCw,
   Plus,
   Pin,
   PinOff,
@@ -176,29 +174,18 @@ export const EntitySidebarLeft: React.FC = () => {
 
   return (
     <aside className="w-72 shrink-0 bg-[#f8fafc] border-r border-[#e2e8f0] flex flex-col h-full select-none z-10 shadow-xs relative">
-      {/* 1. Header with Add Session (+) Button */}
-      <div className="p-3.5 border-b border-[#e2e8f0] bg-[#ffffff]">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[10px] uppercase font-mono font-bold text-[#64748b] tracking-wider">
-            PI SESSION DATABASE
-          </span>
-          <button
-            onClick={() => setIsAddingNew(!isAddingNew)}
-            className="p-1 rounded-md bg-[#e11d48]/10 hover:bg-[#e11d48]/20 border border-[#e11d48]/30 text-[#e11d48] transition-colors"
-            title="Create New Session"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-[#0f172a] font-mono">
-            {filteredSessions.length} Sessions Loaded
-          </span>
-          <span className="text-[10px] font-mono text-[#64748b] bg-[#f1f5f9] px-2 py-0.5 rounded border border-[#e2e8f0]">
-            Disk Sync
-          </span>
-        </div>
+      {/* 1. Clean Minimal Header */}
+      <div className="p-3.5 border-b border-[#e2e8f0] bg-[#ffffff] flex items-center justify-between">
+        <span className="text-xs font-bold text-[#0f172a] font-mono">
+          Sessions ({filteredSessions.length})
+        </span>
+        <button
+          onClick={() => setIsAddingNew(!isAddingNew)}
+          className="p-1 rounded-md bg-[#e11d48]/10 hover:bg-[#e11d48]/20 border border-[#e11d48]/30 text-[#e11d48] transition-colors"
+          title="Create New Session"
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* Inline Input to Create New Session */}
@@ -333,22 +320,7 @@ export const EntitySidebarLeft: React.FC = () => {
         })}
       </div>
 
-      {/* 4. Footer */}
-      <div className="p-3 border-t border-[#e2e8f0] bg-[#ffffff] flex items-center justify-between text-xs text-[#64748b]">
-        <div className="flex items-center space-x-2">
-          <HardDrive className="w-3.5 h-3.5 text-[#64748b]" />
-          <span className="text-[11px] font-mono font-medium">Right-click for options</span>
-        </div>
-        <button
-          onClick={() => window.location.reload()}
-          title="Reload Sessions"
-          className="p-1 rounded-md hover:bg-[#f1f5f9] text-[#64748b] hover:text-[#0f172a] transition-colors"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      {/* 5. Custom Right-Click Context Menu (Floating) */}
+      {/* 4. Custom Right-Click Context Menu (Floating) */}
       {contextMenu.visible && contextMenu.session && (
         <div
           style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}

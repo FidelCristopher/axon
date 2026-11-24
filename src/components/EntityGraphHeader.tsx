@@ -23,9 +23,6 @@ export const EntityGraphHeader: React.FC = () => {
         <h1 className="text-base font-black tracking-widest text-[#0f172a] uppercase font-mono">
           AXON
         </h1>
-        <span className="text-[10px] font-mono text-[#64748b] px-2 py-0.5 border border-[#e2e8f0] rounded bg-[#f8fafc]">
-          Relationship Graph v1.0
-        </span>
       </div>
 
       {/* Segmented View Mode Tabs: [Graph] [Split] [Workbench] */}
