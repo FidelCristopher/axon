@@ -1,13 +1,11 @@
 import React from 'react';
 import { useAxonStore } from '../store/axonStore';
-import { RotateCcw, Maximize, ToggleLeft, ToggleRight } from 'lucide-react';
+import { RotateCcw, Maximize } from 'lucide-react';
 
 export const EntityGraphHeader: React.FC = () => {
   const { 
     activeViewTab, 
-    setActiveViewTab, 
-    showEdgeLabels, 
-    setShowEdgeLabels 
+    setActiveViewTab 
   } = useAxonStore();
 
   const handleFullscreen = () => {
@@ -64,22 +62,8 @@ export const EntityGraphHeader: React.FC = () => {
         </button>
       </div>
 
-      {/* Controls: Show Edge Labels, Refresh, Fullscreen */}
+      {/* Controls: Refresh & Fullscreen */}
       <div className="flex items-center space-x-3 text-xs">
-        {/* Toggle Switch: Show Edge Labels */}
-        <div
-          onClick={() => setShowEdgeLabels(!showEdgeLabels)}
-          className="flex items-center space-x-2 cursor-pointer bg-[#0a0a0a] border border-[#222222] px-3 py-1.5 rounded-md hover:border-[#333333] transition-colors"
-        >
-          {showEdgeLabels ? (
-            <ToggleRight className="w-4 h-4 text-[#e11d48]" />
-          ) : (
-            <ToggleLeft className="w-4 h-4 text-[#555555]" />
-          )}
-          <span className="text-[11px] text-[#aaaaaa]">Show Edge Labels</span>
-        </div>
-
-        {/* Refresh Graph */}
         <button
           onClick={() => window.location.reload()}
           className="flex items-center space-x-1.5 bg-[#0a0a0a] border border-[#222222] px-3 py-1.5 rounded-md text-[#aaaaaa] hover:text-[#ffffff] hover:border-[#333333] transition-colors"
@@ -89,7 +73,6 @@ export const EntityGraphHeader: React.FC = () => {
           <span className="text-[11px]">Refresh</span>
         </button>
 
-        {/* Fullscreen */}
         <button
           onClick={handleFullscreen}
           className="bg-[#0a0a0a] border border-[#222222] p-1.5 rounded-md text-[#aaaaaa] hover:text-[#ffffff] hover:border-[#333333] transition-colors"

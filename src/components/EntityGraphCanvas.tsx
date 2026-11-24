@@ -19,39 +19,32 @@ export const EntityGraphCanvas: React.FC = () => {
     entities, 
     relationships, 
     selectedEntityId, 
-    setSelectedEntityId,
-    showEdgeLabels 
+    setSelectedEntityId 
   } = useAxonStore();
 
   const { nodes, edges } = useMemo(() => {
     const generatedNodes: Node[] = [];
     const generatedEdges: Edge[] = [];
 
-    // Dense organic constellation layout
-    const total = entities.length;
-    const centerX = 520;
-    const centerY = 340;
+    // Distinct, clean positions for pure session nodes
+    const positions: Record<string, { x: number; y: number }> = {
+      'hub-main': { x: 380, y: 280 },
+      'node-dev-1': { x: 680, y: 150 },
+      'node-dev-2': { x: 680, y: 410 },
+      'node-qa': { x: 380, y: 520 },
+      'node-designer': { x: 120, y: 410 },
+    };
 
     entities.forEach((entity, index) => {
-      let x = centerX;
-      let y = centerY;
-
-      if (entity.id === 'hub-main') {
-        x = centerX;
-        y = centerY;
-      } else {
-        const angle = ((index - 1) / (total - 1)) * 2 * Math.PI;
-        const radius = index % 2 === 0 ? 240 : 340;
-        const jitterX = Math.sin(index * 3) * 40;
-        const jitterY = Math.cos(index * 2) * 40;
-        x = centerX + Math.cos(angle) * radius + jitterX;
-        y = centerY + Math.sin(angle) * radius + jitterY;
-      }
+      const pos = positions[entity.id] || {
+        x: 380 + Math.cos((index * 2 * Math.PI) / entities.length) * 260,
+        y: 280 + Math.sin((index * 2 * Math.PI) / entities.length) * 260,
+      };
 
       generatedNodes.push({
         id: entity.id,
         type: 'entityGraphNode',
-        position: { x, y },
+        position: pos,
         data: {
           entity,
           isSelected: entity.id === selectedEntityId,
@@ -60,7 +53,7 @@ export const EntityGraphCanvas: React.FC = () => {
       });
     });
 
-    // Radiant crimson highlight edges for selected entity
+    // Pure connection lines without any text labels
     relationships.forEach((rel) => {
       const isConnectedToSelected =
         rel.source === selectedEntityId || rel.target === selectedEntityId;
@@ -70,25 +63,13 @@ export const EntityGraphCanvas: React.FC = () => {
         source: rel.source,
         target: rel.target,
         animated: isConnectedToSelected,
-        label: showEdgeLabels ? rel.label : undefined,
-        labelStyle: {
-          fill: isConnectedToSelected ? '#ffffff' : '#555555',
-          fontSize: 8,
-          fontFamily: 'monospace',
-          fontWeight: isConnectedToSelected ? 600 : 400,
-        },
-        labelBgStyle: {
-          fill: '#000000',
-          fillOpacity: 0.85,
-          rx: 2,
-        },
-        labelBgPadding: [3, 2],
+        label: undefined, // Pure line without text
         style: {
           stroke: isConnectedToSelected ? '#e11d48' : '#222222',
-          strokeWidth: isConnectedToSelected ? 2.2 : 0.9,
-          opacity: isConnectedToSelected ? 1 : 0.45,
+          strokeWidth: isConnectedToSelected ? 2.2 : 1,
+          opacity: isConnectedToSelected ? 1 : 0.4,
           filter: isConnectedToSelected
-            ? 'drop-shadow(0 0 5px rgba(225, 29, 72, 0.7))'
+            ? 'drop-shadow(0 0 6px rgba(225, 29, 72, 0.75))'
             : 'none',
         },
         markerEnd: isConnectedToSelected
@@ -103,7 +84,7 @@ export const EntityGraphCanvas: React.FC = () => {
     });
 
     return { nodes: generatedNodes, edges: generatedEdges };
-  }, [entities, relationships, selectedEntityId, showEdgeLabels]);
+  }, [entities, relationships, selectedEntityId]);
 
   return (
     <div className="flex-1 h-full bg-[#000000] relative select-none">
@@ -113,19 +94,19 @@ export const EntityGraphCanvas: React.FC = () => {
         nodeTypes={nodeTypes}
         onNodeClick={(_, node) => setSelectedEntityId(node.id)}
         fitView
-        minZoom={0.2}
+        minZoom={0.3}
         maxZoom={2.0}
         proOptions={{ hideAttribution: true }}
       >
         {/* Pitch black dot matrix background */}
-        <Background color="#161616" gap={20} size={1} />
+        <Background color="#161616" gap={24} size={1} />
         <Controls
           position="bottom-right"
           className="!bg-[#0a0a0a] !border-[#222222] !rounded-md !shadow-2xl [&>button]:!bg-[#0a0a0a] [&>button]:!border-[#222222] [&>button]:!text-[#888888] hover:[&>button]:!text-[#ffffff] !mr-4 !mb-4"
         />
       </ReactFlow>
 
-      {/* Top Left Graph Title */}
+      {/* Top Left Title */}
       <div className="absolute top-5 left-6 pointer-events-none">
         <h2 className="text-sm font-semibold tracking-tight text-[#f5f5f5]">
           Graph Relationship Visualization

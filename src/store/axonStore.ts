@@ -12,7 +12,6 @@ export const ENTITY_TYPE_CONFIGS: EntityTypeConfig[] = [
   { type: 'dev', label: 'Developer (feat/*)', color: '#ea580c' },
   { type: 'qa', label: 'QA & Auditor', color: '#9333ea' },
   { type: 'designer', label: 'Asset Designer', color: '#16a34a' },
-  { type: 'skill', label: 'Skill & Engine', color: '#e11d48' },
 ];
 
 interface AxonState {
@@ -20,13 +19,11 @@ interface AxonState {
   entities: GraphEntity[];
   relationships: GraphRelationship[];
   selectedEntityId: string;
-  showEdgeLabels: boolean;
   activeViewTab: 'graph' | 'split' | 'workbench';
   isTerminalModalOpen: boolean;
 
   // Actions
   setSelectedEntityId: (id: string) => void;
-  setShowEdgeLabels: (show: boolean) => void;
   setActiveViewTab: (tab: 'graph' | 'split' | 'workbench') => void;
   setIsTerminalModalOpen: (open: boolean) => void;
   addEntity: (name: string, type: GraphEntity['type'], worktree: string) => void;
@@ -40,10 +37,10 @@ interface AxonState {
 export const useAxonStore = create<AxonState>((set, get) => ({
   projectName: 'ChineseLearning',
   selectedEntityId: 'hub-main',
-  showEdgeLabels: true,
   activeViewTab: 'graph',
   isTerminalModalOpen: false,
 
+  // Pure session nodes only - no skills as floating nodes
   entities: [
     {
       id: 'hub-main',
@@ -115,82 +112,20 @@ export const useAxonStore = create<AxonState>((set, get) => ({
       createdAt: '2026-11-23 20:50:00',
       summary: 'Produces pure Android VectorDrawable XML files and SVG assets with strict zero-emoji enforcement.',
     },
-    {
-      id: 'skill-android-compose',
-      uuid: '11aa22bb-33cc-44dd-55ee-66ff77889900',
-      name: 'android-compose',
-      type: 'skill',
-      worktree: 'system',
-      status: 'IDLE',
-      statusMessage: 'Skill library mounted',
-      tokenUsed: 12000,
-      tokenMax: 1000000,
-      skills: [],
-      createdAt: '2026-11-23 20:40:00',
-      summary: 'NowInAndroid production standards for Jetpack Compose, StateFlow, Coroutines, and responsive UI layouts.',
-    },
-    {
-      id: 'skill-antislop-ui',
-      uuid: '22bb33cc-44dd-55ee-66ff-7788990011aa',
-      name: 'antislop-ui',
-      type: 'skill',
-      worktree: 'system',
-      status: 'IDLE',
-      statusMessage: 'Skill library mounted',
-      tokenUsed: 14000,
-      tokenMax: 1000000,
-      skills: [],
-      createdAt: '2026-11-23 20:40:00',
-      summary: 'Eliminates generic AI slop, default gradients, and artificial aesthetics in favor of human craftsmanship.',
-    },
-    {
-      id: 'skill-vector-designer',
-      uuid: '33cc44dd-55ee-66ff-7788-990011aa22bb',
-      name: 'vector-designer',
-      type: 'skill',
-      worktree: 'system',
-      status: 'IDLE',
-      statusMessage: 'Skill library mounted',
-      tokenUsed: 11000,
-      tokenMax: 1000000,
-      skills: [],
-      createdAt: '2026-11-23 20:40:00',
-      summary: 'Generates pure vector XML paths matching AOSP density buckets without pixelation or emoji fallbacks.',
-    },
-    {
-      id: 'skill-git-release',
-      uuid: '44dd55ee-66ff-7788-9900-11aa22bb33cc',
-      name: 'git-release',
-      type: 'skill',
-      worktree: 'system',
-      status: 'IDLE',
-      statusMessage: 'Skill library mounted',
-      tokenUsed: 9500,
-      tokenMax: 1000000,
-      skills: [],
-      createdAt: '2026-11-23 20:40:00',
-      summary: 'Enforces Conventional Commits 1.0.0 and cleanly orchestrated git worktree lifecycle protocols.',
-    },
   ],
 
+  // Clean peer connections between actual sessions without textual labels
   relationships: [
-    { id: 'rel-hub-dev1', source: 'hub-main', target: 'node-dev-1', label: 'DELEGATES_TASK' },
-    { id: 'rel-hub-dev2', source: 'hub-main', target: 'node-dev-2', label: 'DELEGATES_TASK' },
-    { id: 'rel-hub-qa', source: 'hub-main', target: 'node-qa', label: 'AUDITS_PIPELINE' },
-    { id: 'rel-hub-designer', source: 'hub-main', target: 'node-designer', label: 'DELEGATES_ASSETS' },
-    { id: 'rel-dev1-qa', source: 'node-dev-1', target: 'node-qa', label: 'HANDOFF_AUDIT' },
-    { id: 'rel-dev2-qa', source: 'node-dev-2', target: 'node-qa', label: 'HANDOFF_AUDIT' },
-    { id: 'rel-dev1-designer', source: 'node-dev-1', target: 'node-designer', label: 'REQUESTS_ICON' },
-    { id: 'rel-dev1-skill1', source: 'node-dev-1', target: 'skill-android-compose', label: 'USES_SKILL' },
-    { id: 'rel-dev1-skill2', source: 'node-dev-1', target: 'skill-antislop-ui', label: 'USES_SKILL' },
-    { id: 'rel-dev2-skill1', source: 'node-dev-2', target: 'skill-android-compose', label: 'USES_SKILL' },
-    { id: 'rel-designer-skill1', source: 'node-designer', target: 'skill-vector-designer', label: 'USES_SKILL' },
-    { id: 'rel-designer-skill2', source: 'node-designer', target: 'skill-antislop-ui', label: 'USES_SKILL' },
-    { id: 'rel-qa-skill1', source: 'node-qa', target: 'skill-git-release', label: 'USES_SKILL' },
+    { id: 'rel-hub-dev1', source: 'hub-main', target: 'node-dev-1', label: '' },
+    { id: 'rel-hub-dev2', source: 'hub-main', target: 'node-dev-2', label: '' },
+    { id: 'rel-hub-qa', source: 'hub-main', target: 'node-qa', label: '' },
+    { id: 'rel-hub-designer', source: 'hub-main', target: 'node-designer', label: '' },
+    { id: 'rel-dev1-qa', source: 'node-dev-1', target: 'node-qa', label: '' },
+    { id: 'rel-dev2-qa', source: 'node-dev-2', target: 'node-qa', label: '' },
+    { id: 'rel-dev1-designer', source: 'node-dev-1', target: 'node-designer', label: '' },
   ],
 
   setSelectedEntityId: (id) => set({ selectedEntityId: id }),
-  setShowEdgeLabels: (show) => set({ showEdgeLabels: show }),
   setActiveViewTab: (tab) => set({ activeViewTab: tab }),
   setIsTerminalModalOpen: (open) => set({ isTerminalModalOpen: open }),
 
@@ -207,14 +142,14 @@ export const useAxonStore = create<AxonState>((set, get) => ({
       tokenMax: 1000000,
       skills: ['antislop-ui'],
       createdAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
-      summary: 'Dynamic entity branch created in graph relationship network.',
+      summary: 'Dynamic session branch created in relationship network.',
     };
 
     const newRel: GraphRelationship = {
       id: `rel-hub-${newEntity.id}`,
       source: 'hub-main',
       target: newEntity.id,
-      label: 'CONNECTED_BRANCH',
+      label: '',
     };
 
     set((state) => ({
@@ -225,7 +160,7 @@ export const useAxonStore = create<AxonState>((set, get) => ({
   },
 
   removeEntity: (id) => {
-    if (id === 'hub-main') return; // Core hub protected
+    if (id === 'hub-main') return;
     set((state) => ({
       entities: state.entities.filter((e) => e.id !== id),
       relationships: state.relationships.filter((r) => r.source !== id && r.target !== id),
