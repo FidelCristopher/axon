@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAxonStore } from '../store/axonStore';
-import { X, Scissors, Send, GitBranch } from 'lucide-react';
+import { X, Scissors, Send, GitBranch, MessageSquare, Terminal, Wrench } from 'lucide-react';
 
 export const PeekTerminalModal: React.FC = () => {
   const { 
@@ -16,6 +16,12 @@ export const PeekTerminalModal: React.FC = () => {
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Tab View State: 'chat' for parsed historical chat turns, 'console' for live terminal/telemetry
+  const [modalView, setModalView] = useState<'chat' | 'console'>('chat');
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   const entity = entities.find((e) => e.id === selectedEntityId);
 
@@ -40,6 +46,33 @@ export const PeekTerminalModal: React.FC = () => {
       `--- Connected to Native Pi Engine (100% Local File Access) ---`,
     ]);
   }, [selectedEntityId, isTerminalModalOpen]);
+
+  // Fetch real session history (.jsonl) whenever modal opens or active entity changes
+  useEffect(() => {
+    if (!isTerminalModalOpen || !entity) return;
+
+    setIsLoadingHistory(true);
+    const targetLookup = entity.uuid || entity.id;
+
+    fetch(`/api/session-history?id=${encodeURIComponent(targetLookup)}`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Session history not found');
+        return res.json();
+      })
+      .then((data) => {
+        if (data && Array.isArray(data.messages)) {
+          setChatMessages(data.messages);
+        } else {
+          setChatMessages([]);
+        }
+      })
+      .catch(() => {
+        setChatMessages([]);
+      })
+      .finally(() => {
+        setIsLoadingHistory(false);
+      });
+  }, [entity?.id, entity?.uuid, isTerminalModalOpen]);
 
   // Connect to SSE stream from native Pi Bridge for real-time telemetry
   useEffect(() => {
@@ -219,32 +252,135 @@ export const PeekTerminalModal: React.FC = () => {
           </div>
         </div>
 
-        {/* Console Logs */}
-        <div className="flex-1 bg-[#0f172a] p-4 font-mono text-xs overflow-y-auto space-y-1 text-[#f8fafc]">
-          {terminalLogs.map((log, index) => {
-            const isUser = log.startsWith('> User');
-            const isTool = log.startsWith('[tool');
-            const isAgent = log.startsWith('[assistant]') || log.startsWith('[agent');
+        {/* View Tabs Switcher: Real Chat History vs Live Console */}
+        <div className="px-4 py-2 bg-[#ffffff] border-b border-[#e2e8f0] flex items-center justify-between">
+          <div className="flex items-center space-x-1.5">
+            <button
+              onClick={() => setModalView('chat')}
+              className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-semibold font-mono transition-all ${
+                modalView === 'chat'
+                  ? 'bg-[#e11d48] text-white shadow-xs'
+                  : 'bg-[#f1f5f9] text-[#64748b] hover:text-[#0f172a] hover:bg-[#e2e8f0]'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Chat History {chatMessages.length > 0 && `(${chatMessages.length})`}</span>
+            </button>
 
-            return (
-              <div
-                key={index}
-                className={`leading-relaxed ${
-                  isUser
-                    ? 'text-[#38bdf8] font-bold'
-                    : isTool
-                    ? 'text-[#fbbf24]'
-                    : isAgent
-                    ? 'text-[#34d399]'
-                    : 'text-[#94a3b8]'
-                }`}
-              >
-                {log}
-              </div>
-            );
-          })}
-          <div ref={logsEndRef} />
+            <button
+              onClick={() => setModalView('console')}
+              className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-semibold font-mono transition-all ${
+                modalView === 'console'
+                  ? 'bg-[#e11d48] text-white shadow-xs'
+                  : 'bg-[#f1f5f9] text-[#64748b] hover:text-[#0f172a] hover:bg-[#e2e8f0]'
+              }`}
+            >
+              <Terminal className="w-3.5 h-3.5" />
+              <span>Live Console & Telemetry</span>
+            </button>
+          </div>
+
+          <span className="text-[10px] font-mono text-[#94a3b8]">
+            {modalView === 'chat' ? (isLoadingHistory ? 'Loading .jsonl...' : `${chatMessages.length} turns loaded`) : 'Zero-Idle PTY'}
+          </span>
         </div>
+
+        {/* Content Body: Chat History OR Console Logs */}
+        {modalView === 'chat' ? (
+          <div className="flex-1 bg-[#f8fafc] p-4 overflow-y-auto space-y-3 font-sans">
+            {isLoadingHistory ? (
+              <div className="flex flex-col items-center justify-center h-full text-[#64748b] font-mono text-xs space-y-2">
+                <div className="w-5 h-5 border-2 border-[#e11d48] border-t-transparent rounded-full animate-spin" />
+                <span>Reading session history (.jsonl)...</span>
+              </div>
+            ) : chatMessages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-[#94a3b8] font-mono text-xs space-y-1 text-center p-6">
+                <div className="text-sm font-bold text-[#64748b]">No Historical Chat Turns Found</div>
+                <p className="text-[11px] text-[#94a3b8]">
+                  This session does not have logged user/assistant messages yet, or switch to Live Console to send a command.
+                </p>
+              </div>
+            ) : (
+              chatMessages.map((msg, index) => {
+                const isUser = msg.role === 'user';
+
+                return (
+                  <div
+                    key={msg.id || index}
+                    className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
+                  >
+                    <div className="flex items-center space-x-1.5 mb-1 px-1 text-[10px] text-[#64748b] font-mono">
+                      <span className="font-bold text-[#0f172a]">{isUser ? 'User Prompt' : 'Pi Assistant'}</span>
+                      {msg.timestamp && (
+                        <span>• {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      )}
+                    </div>
+
+                    <div
+                      className={`max-w-[88%] rounded-lg p-3 text-xs leading-relaxed shadow-xs ${
+                        isUser
+                          ? 'bg-[#0f172a] text-[#f8fafc] font-mono rounded-tr-none'
+                          : 'bg-[#ffffff] text-[#0f172a] border border-[#e2e8f0] rounded-tl-none font-sans'
+                      }`}
+                    >
+                      {msg.text && (
+                        <div className="whitespace-pre-wrap select-text">{msg.text}</div>
+                      )}
+
+                      {/* Tool Calls Breakdown */}
+                      {msg.tools && msg.tools.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-[#e2e8f0]/80 space-y-1.5">
+                          <div className="text-[9px] font-mono font-bold text-[#64748b] uppercase tracking-wider flex items-center space-x-1">
+                            <Wrench className="w-2.5 h-2.5 text-[#e11d48]" />
+                            <span>Tool Invocations ({msg.tools.length})</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto">
+                            {msg.tools.map((t: any, tIdx: number) => (
+                              <span
+                                key={tIdx}
+                                className="text-[9px] font-mono px-2 py-0.5 rounded bg-[#f1f5f9] text-[#334155] border border-[#e2e8f0] max-w-full truncate"
+                                title={t.name ? `${t.name}: ${JSON.stringify(t.args || {})}` : t.output}
+                              >
+                                {t.name ? `[${t.name}]` : `[result: ${String(t.output || '').slice(0, 35)}...]`}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <div ref={chatEndRef} />
+          </div>
+        ) : (
+          <div className="flex-1 bg-[#0f172a] p-4 font-mono text-xs overflow-y-auto space-y-1 text-[#f8fafc]">
+            {terminalLogs.map((log, index) => {
+              const isUser = log.startsWith('> User');
+              const isTool = log.startsWith('[tool');
+              const isAgent = log.startsWith('[assistant]') || log.startsWith('[agent');
+
+              return (
+                <div
+                  key={index}
+                  className={`leading-relaxed ${
+                    isUser
+                      ? 'text-[#38bdf8] font-bold'
+                      : isTool
+                      ? 'text-[#fbbf24]'
+                      : isAgent
+                      ? 'text-[#34d399]'
+                      : 'text-[#94a3b8]'
+                  }`}
+                >
+                  {log}
+                </div>
+              );
+            })}
+            <div ref={logsEndRef} />
+          </div>
+        )}
 
         {/* Input Bar */}
         <form onSubmit={handleSendPrompt} className="p-3 bg-[#ffffff] border-t border-[#e2e8f0] flex items-center space-x-2">
