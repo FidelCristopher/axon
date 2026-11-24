@@ -24,7 +24,7 @@ export const EntitySidebarLeft: React.FC = () => {
   );
 
   return (
-    <aside className="w-64 bg-[#080808] border-r border-[#1a1a1a] flex flex-col h-full select-none z-10">
+    <aside className="w-64 shrink-0 bg-[#080808] border-r border-[#1a1a1a] flex flex-col h-full select-none z-10">
       {/* Active Repository Card */}
       <div className="p-3.5 border-b border-[#1a1a1a] bg-[#000000]">
         <div className="text-[10px] uppercase font-mono font-semibold text-[#666666] tracking-wider mb-1.5 flex items-center justify-between">

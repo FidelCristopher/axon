@@ -120,7 +120,8 @@ export const EntityGraphCanvas: React.FC = () => {
         {/* Pitch black dot matrix background */}
         <Background color="#161616" gap={20} size={1} />
         <Controls
-          className="!bg-[#0a0a0a] !border-[#222222] !rounded-md !shadow-2xl [&>button]:!bg-[#0a0a0a] [&>button]:!border-[#222222] [&>button]:!text-[#888888] hover:[&>button]:!text-[#ffffff]"
+          position="bottom-right"
+          className="!bg-[#0a0a0a] !border-[#222222] !rounded-md !shadow-2xl [&>button]:!bg-[#0a0a0a] [&>button]:!border-[#222222] [&>button]:!text-[#888888] hover:[&>button]:!text-[#ffffff] !mr-4 !mb-4"
         />
       </ReactFlow>
 

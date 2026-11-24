@@ -55,7 +55,7 @@ export const NodeDetailSidebar: React.FC = () => {
   };
 
   return (
-    <aside className="w-96 bg-[#0a0a0a] border-l border-[#1a1a1a] flex flex-col h-full select-none text-xs z-10">
+    <aside className="w-96 shrink-0 bg-[#0a0a0a] border-l border-[#1a1a1a] flex flex-col h-full select-none text-xs z-10">
       {/* Node Details Header */}
       <div className="p-4 border-b border-[#1a1a1a] flex items-center justify-between bg-[#000000]">
         <div className="flex items-center space-x-2">
