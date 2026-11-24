@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light;
   --background: #ffffff;
   --surface: #ffffff;
   --surface-secondary: #f8fafc;
@@ -10,6 +11,11 @@
   --accent-crimson: #e11d48;
   --text-main: #0f172a;
   --text-muted: #64748b;
+}
+
+.react-flow {
+  background-color: #ffffff !important;
+  color-scheme: light;
 }
 
 .wezterm-terminal,

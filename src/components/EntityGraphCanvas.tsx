@@ -106,6 +106,7 @@ export const EntityGraphCanvas: React.FC = () => {
       )}
 
       <ReactFlow
+        style={{ backgroundColor: '#ffffff' }}
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}

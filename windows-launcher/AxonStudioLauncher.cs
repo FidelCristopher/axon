@@ -80,12 +80,13 @@ namespace AxonStudio
 
         static string FindBrowser()
         {
+            // Prefer Chrome first to avoid Microsoft Edge's Windows-account auto-sync popup
             string[] candidates = new[]
             {
-                @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-                @"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
                 @"C:\Program Files\Google\Chrome\Application\chrome.exe",
-                @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+                @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+                @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+                @"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
             };
             foreach (var p in candidates)
             {
@@ -100,7 +101,7 @@ namespace AxonStudio
             string profileDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "AxonStudio",
-                "Profile"
+                "ChromeProfile"
             );
             Directory.CreateDirectory(profileDir);
 
@@ -110,7 +111,7 @@ namespace AxonStudio
                 {
                     FileName = browser,
                     Arguments = string.Format(
-                        "--app={0} --window-size=1440,900 --user-data-dir=\"{1}\" --no-first-run --no-default-browser-check",
+                        "--app={0} --window-size=1440,900 --user-data-dir=\"{1}\" --no-first-run --no-default-browser-check --disable-sync --disable-features=msImplicitSignIn,msEdgeAccountConsistency",
                         AppUrl,
                         profileDir
                     ),
