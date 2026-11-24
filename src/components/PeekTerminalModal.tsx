@@ -1,6 +1,27 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useAxonStore } from '../store/axonStore';
+import { useAxonStore, AVAILABLE_SKILLS } from '../store/axonStore';
 import { X, Scissors, Send, Image as ImageIcon } from 'lucide-react';
+
+interface SlashCommandItem {
+  command: string;
+  description: string;
+  kind: 'command' | 'skill' | 'active-skill';
+}
+
+const PI_BUILTIN_COMMANDS: SlashCommandItem[] = [
+  { command: '/compact', description: 'Compact session memory and prune old turns', kind: 'command' },
+  { command: '/thinking', description: 'Cycle reasoning effort (off / low / medium / high)', kind: 'command' },
+  { command: '/model', description: 'Switch active model (gemini-4-neon, 3.8-flash, carbon, hydrogen)', kind: 'command' },
+  { command: '/role', description: 'Inspect or switch active agent role and linked skills', kind: 'command' },
+  { command: '/clear', description: 'Clear terminal display buffer', kind: 'command' },
+  { command: '/new', description: 'Start a fresh session in this workspace', kind: 'command' },
+  { command: '/resume', description: 'Resume another saved Pi session', kind: 'command' },
+  { command: '/tree', description: 'Inspect conversation branch tree', kind: 'command' },
+  { command: '/export', description: 'Export session transcript', kind: 'command' },
+  { command: '/reload', description: 'Reload extensions, skills, and prompt templates', kind: 'command' },
+  { command: '/settings', description: 'Show Pi runtime settings', kind: 'command' },
+  { command: '/help', description: 'List available slash commands and shortcuts', kind: 'command' },
+];
 
 export interface AttachedImage {
   id: string;
@@ -261,7 +282,12 @@ export const PeekTerminalModal: React.FC = () => {
 
   const [inputPrompt, setInputPrompt] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [activeModel, setActiveModel] = useState('gemini-4-neon');
+  const [thinkingLevel, setThinkingLevel] = useState<'off' | 'low' | 'medium' | 'high'>('medium');
+  const [slashSelectedIdx, setSlashSelectedIdx] = useState(0);
+  const [slashDismissed, setSlashDismissed] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Single Unified Chat & Telemetry Stream
   const [chatMessages, setChatMessages] = useState<ChatMessageItem[]>([]);
@@ -278,6 +304,59 @@ export const PeekTerminalModal: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const entity = entities.find((e) => e.id === selectedEntityId);
+
+  // Build combined Pi Slash Commands + Active Session Skills + Local Installed Skills
+  const allSlashItems = useMemo<SlashCommandItem[]>(() => {
+    const activeSkills = entity?.skills || [];
+    const seen = new Set<string>();
+    const skillItems: SlashCommandItem[] = [];
+
+    activeSkills.forEach((s) => {
+      const clean = s.startsWith('github:') ? s.replace('github:', '') : s;
+      const cmd = `/skill:${clean}`;
+      if (!seen.has(cmd)) {
+        seen.add(cmd);
+        skillItems.push({
+          command: cmd,
+          description: s.startsWith('github:')
+            ? `Active GitHub skill (${s})`
+            : 'Active skill attached to this session',
+          kind: 'active-skill',
+        });
+      }
+    });
+
+    AVAILABLE_SKILLS.forEach((sk) => {
+      const cmd = `/skill:${sk.id}`;
+      if (!seen.has(cmd)) {
+        seen.add(cmd);
+        skillItems.push({
+          command: cmd,
+          description: sk.description,
+          kind: 'skill',
+        });
+      }
+    });
+
+    return [...PI_BUILTIN_COMMANDS, ...skillItems];
+  }, [entity?.skills]);
+
+  const showSlashMenu =
+    !slashDismissed && inputPrompt.startsWith('/') && !inputPrompt.includes(' ');
+
+  const filteredSlashItems = useMemo(() => {
+    if (!showSlashMenu) return [];
+    const query = inputPrompt.toLowerCase();
+    return allSlashItems.filter(
+      (item) =>
+        item.command.toLowerCase().includes(query) ||
+        item.description.toLowerCase().includes(query.slice(1))
+    );
+  }, [showSlashMenu, inputPrompt, allSlashItems]);
+
+  useEffect(() => {
+    setSlashSelectedIdx(0);
+  }, [inputPrompt]);
 
   // Worktree real directory mapping
   const resolveCwd = (ent: typeof entity) => {
@@ -479,6 +558,43 @@ export const PeekTerminalModal: React.FC = () => {
   // Set to true to connect to live Pi bridge, or false for safe UI sandbox development mode
   const IS_LIVE_BRIDGE_ACTIVE = false;
 
+  const handleSelectSlashItem = (item: SlashCommandItem) => {
+    const needsArg =
+      item.command === '/model' ||
+      item.command === '/role' ||
+      item.command.startsWith('/skill:');
+    setInputPrompt(needsArg ? `${item.command} ` : item.command);
+    setSlashDismissed(true);
+    inputRef.current?.focus();
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSlashMenu || filteredSlashItems.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSlashSelectedIdx((prev) => (prev + 1) % filteredSlashItems.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSlashSelectedIdx(
+        (prev) => (prev - 1 + filteredSlashItems.length) % filteredSlashItems.length
+      );
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      const chosen = filteredSlashItems[slashSelectedIdx];
+      if (chosen) handleSelectSlashItem(chosen);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setSlashDismissed(true);
+    } else if (e.key === 'Enter') {
+      const chosen = filteredSlashItems[slashSelectedIdx];
+      if (chosen && chosen.command !== inputPrompt.trim()) {
+        e.preventDefault();
+        handleSelectSlashItem(chosen);
+      }
+    }
+  };
+
   const handleSendPrompt = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!inputPrompt.trim() && attachedImages.length === 0) || isSending) return;
@@ -486,7 +602,80 @@ export const PeekTerminalModal: React.FC = () => {
     const promptText = inputPrompt.trim();
     const imagesToAttach = [...attachedImages];
 
+    // Handle local Pi slash commands instantaneously (0 tokens)
+    if (promptText === '/compact') {
+      setInputPrompt('');
+      setSlashDismissed(false);
+      await handleManualCompact();
+      return;
+    }
+
+    if (promptText === '/clear') {
+      setInputPrompt('');
+      setSlashDismissed(false);
+      setChatMessages([]);
+      return;
+    }
+
+    if (promptText.startsWith('/thinking')) {
+      setInputPrompt('');
+      setSlashDismissed(false);
+      const arg = promptText.split(/\s+/)[1]?.toLowerCase();
+      const levels: Array<'off' | 'low' | 'medium' | 'high'> = ['off', 'low', 'medium', 'high'];
+      const nextLevel =
+        arg && levels.includes(arg as any)
+          ? (arg as 'off' | 'low' | 'medium' | 'high')
+          : levels[(levels.indexOf(thinkingLevel) + 1) % levels.length];
+      setThinkingLevel(nextLevel);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `sys-${Date.now()}`,
+          role: 'system_notice',
+          text: `Thinking level set to: ${nextLevel}`,
+          timestamp: Date.now(),
+        },
+      ]);
+      return;
+    }
+
+    if (promptText.startsWith('/model')) {
+      setInputPrompt('');
+      setSlashDismissed(false);
+      const arg = promptText.split(/\s+/)[1];
+      const models = ['gemini-4-neon', 'gemini-3.8-flash', 'gemini-4-hydrogen', 'gemini-4-carbon'];
+      const nextModel = arg || models[(models.indexOf(activeModel) + 1) % models.length];
+      setActiveModel(nextModel);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `sys-${Date.now()}`,
+          role: 'system_notice',
+          text: `Active model switched to: (antigravity) ${nextModel}`,
+          timestamp: Date.now(),
+        },
+      ]);
+      return;
+    }
+
+    if (promptText === '/help') {
+      setInputPrompt('');
+      setSlashDismissed(false);
+      const summary = PI_BUILTIN_COMMANDS.map((c) => `- \`${c.command}\` — ${c.description}`).join('\n');
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `help-${Date.now()}`,
+          role: 'assistant',
+          text: `### Pi Slash Commands & Skills\n${summary}\n\nTip: Ketik \`/\` di awal prompt untuk membuka daftar command & \`/skill:<nama>\` secara otomatis.`,
+          timestamp: Date.now(),
+        },
+      ]);
+      return;
+    }
+
     setInputPrompt('');
+    setSlashDismissed(false);
     setAttachedImages([]);
     setIsSending(true);
 
@@ -710,6 +899,60 @@ export const PeekTerminalModal: React.FC = () => {
           }}
         />
 
+        {/* Pi Slash Command & Skill Autocomplete Palette */}
+        {showSlashMenu && filteredSlashItems.length > 0 && (
+          <div className="mx-2.5 mb-1.5 bg-[#09090b] border border-[#262626] rounded shadow-2xl overflow-hidden select-none">
+            <div className="px-3 py-1 bg-[#111113] border-b border-[#262626] flex items-center justify-between text-[11px] text-[#737373]">
+              <span>Pi Commands &amp; Skills ({filteredSlashItems.length})</span>
+              <span>↑↓ navigate • Tab/Enter select • Esc close</span>
+            </div>
+            <div className="max-h-52 overflow-y-auto divide-y divide-[#18181b]">
+              {filteredSlashItems.map((item, idx) => {
+                const isSelected = idx === slashSelectedIdx;
+                return (
+                  <button
+                    key={item.command}
+                    type="button"
+                    onMouseEnter={() => setSlashSelectedIdx(idx)}
+                    onClick={() => handleSelectSlashItem(item)}
+                    className={`w-full px-3 py-1.5 flex items-center justify-between text-left text-[13px] transition-colors ${
+                      isSelected ? 'bg-[#18181b] text-[#ffffff]' : 'bg-transparent text-[#d4d4d4] hover:bg-[#111113]'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2 min-w-0">
+                      <span
+                        className={`font-bold shrink-0 ${
+                          item.kind === 'command'
+                            ? 'text-[#00ffff]'
+                            : item.kind === 'active-skill'
+                            ? 'text-[#ff00ff]'
+                            : 'text-[#ffff00]'
+                        }`}
+                      >
+                        {item.command}
+                      </span>
+                      <span className="text-[12px] text-[#737373] truncate">
+                        {item.description}
+                      </span>
+                    </div>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded shrink-0 ml-2 border ${
+                        item.kind === 'command'
+                          ? 'text-[#00ffff] border-[#00ffff]/30 bg-[#00ffff]/10'
+                          : item.kind === 'active-skill'
+                          ? 'text-[#ff00ff] border-[#ff00ff]/30 bg-[#ff00ff]/10'
+                          : 'text-[#a3e635] border-[#a3e635]/30 bg-[#a3e635]/10'
+                      }`}
+                    >
+                      {item.kind === 'command' ? 'CMD' : item.kind === 'active-skill' ? 'ACTIVE' : 'SKILL'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* WezTerm Style Bottom Telemetry Status Line */}
         <div className="px-3.5 py-1.5 bg-[#000000] border-t border-[#262626] flex items-center justify-between text-[12px] text-[#737373] select-none">
           <div className="flex items-center space-x-2">
@@ -720,7 +963,7 @@ export const PeekTerminalModal: React.FC = () => {
             <span className="text-[#a3e635]">{((entity.tokenUsed / entity.tokenMax) * 100).toFixed(0)}%/1.0M (auto)</span>
           </div>
           <div className="flex items-center space-x-2">
-            <span>(antigravity) gemini-4-neon • medium</span>
+            <span>(antigravity) {activeModel} • {thinkingLevel}</span>
           </div>
         </div>
 
@@ -737,15 +980,20 @@ export const PeekTerminalModal: React.FC = () => {
 
           <div className="text-[#ff00ff] text-[14px] font-bold pl-1">&gt;</div>
           <input
+            ref={inputRef}
             type="text"
             placeholder={
               isSending
                 ? `Executing prompt in ${resolveCwd(entity)}...`
-                : `Type prompt or paste image (Ctrl+V)...`
+                : `Type / for commands & skills, or paste image (Ctrl+V)...`
             }
             value={inputPrompt}
             disabled={isSending}
-            onChange={(e) => setInputPrompt(e.target.value)}
+            onChange={(e) => {
+              setInputPrompt(e.target.value);
+              setSlashDismissed(false);
+            }}
+            onKeyDown={handleInputKeyDown}
             className="flex-1 bg-[#000000] border border-[#262626] rounded text-[14px] px-3 py-1.5 text-[#ffffff] placeholder-[#525252] focus:outline-none focus:border-[#ff00ff] disabled:opacity-50"
             autoFocus
           />
