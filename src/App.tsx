@@ -2,13 +2,12 @@ import React from 'react';
 import { EntityGraphHeader } from './components/EntityGraphHeader';
 import { EntitySidebarLeft } from './components/EntitySidebarLeft';
 import { EntityGraphCanvas } from './components/EntityGraphCanvas';
-import { EntityLegend } from './components/EntityLegend';
 import { NodeDetailSidebar } from './components/NodeDetailSidebar';
 import { PeekTerminalModal } from './components/PeekTerminalModal';
 
 export const App: React.FC = () => {
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#000000] text-[#f5f5f5]">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#ffffff] text-[#0f172a]">
       {/* 1. Top Header Navigation */}
       <EntityGraphHeader />
 
@@ -17,10 +16,9 @@ export const App: React.FC = () => {
         {/* Left Sidebar: Active Repo, Search, Entity Nodes Catalog */}
         <EntitySidebarLeft />
 
-        {/* Center Workspace: Relationship Graph Canvas & Floating Legend */}
-        <main className="flex-1 h-full relative overflow-hidden">
+        {/* Center Workspace: Pure Clean Relationship Graph Canvas */}
+        <main className="flex-1 h-full relative overflow-hidden bg-[#ffffff]">
           <EntityGraphCanvas />
-          <EntityLegend />
         </main>
 
         {/* Right Sidebar: Node Details Inspector */}

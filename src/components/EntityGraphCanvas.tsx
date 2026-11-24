@@ -105,16 +105,6 @@ export const EntityGraphCanvas: React.FC = () => {
           className="!bg-[#ffffff] !border-[#e2e8f0] !rounded-md !shadow-md [&>button]:!bg-[#ffffff] [&>button]:!border-[#e2e8f0] [&>button]:!text-[#64748b] hover:[&>button]:!text-[#0f172a] !mr-4 !mb-4"
         />
       </ReactFlow>
-
-      {/* Top Left Title on White Background */}
-      <div className="absolute top-5 left-6 pointer-events-none">
-        <h2 className="text-sm font-bold tracking-tight text-[#0f172a]">
-          Graph Relationship Visualization
-        </h2>
-        <p className="text-[10px] font-mono text-[#64748b] mt-0.5">
-          Pure White Canvas • Isolated Repository Topology
-        </p>
-      </div>
     </div>
   );
 };
