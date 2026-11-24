@@ -1,6 +1,13 @@
 export type NodeStatus = 'IDLE' | 'WORKING' | 'COMPACTING' | 'ERROR';
 
-export type EntityType = 'hub' | 'dev' | 'qa' | 'designer' | 'skill';
+export type EntityType = 'hub' | 'dev' | 'qa' | 'designer' | 'system';
+
+export interface AgentSkill {
+  id: string;
+  name: string;
+  description: string;
+  category: 'mobile' | 'web' | 'ui' | 'git' | 'system';
+}
 
 export interface GraphEntity {
   id: string;

@@ -1,137 +1,142 @@
 import React, { useState } from 'react';
-import { useAxonStore } from '../store/axonStore';
+import { useAxonStore, AVAILABLE_SKILLS } from '../store/axonStore';
 import type { GraphEntity } from '../types/axon';
 import { 
-  Terminal, 
-  Scissors, 
   Plus, 
-  Send, 
+  Trash2, 
+  CheckSquare, 
+  Square, 
+  Sparkles, 
+  Scissors, 
   GitBranch, 
-  Hash, 
-  Clock, 
-  Layers,
-  Sparkles,
-  Trash2
+  SlidersHorizontal,
+  Terminal
 } from 'lucide-react';
 
 export const NodeDetailSidebar: React.FC = () => {
-  const { 
-    entities, 
-    selectedEntityId, 
-    setIsTerminalModalOpen,
-    compactEntityMemory,
-    compactAllEntities,
-    addEntity,
+  const {
+    entities,
+    selectedEntityId,
+    setSelectedEntityId,
+    selectedSessionIds,
+    toggleSessionSelect,
+    selectAllSessions,
     removeEntity,
-    dispatchTaskToEntity
+    addEntity,
+    applySkillsToSelected,
+    compactAllEntities,
+    compactSelectedEntities,
+    setIsTerminalModalOpen,
   } = useAxonStore();
 
-  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
-  const [newEntityName, setNewEntityName] = useState('');
-  const [newEntityType, setNewEntityType] = useState<GraphEntity['type']>('dev');
-  const [newEntityWorktree, setNewEntityWorktree] = useState('feat/new-task');
-  const [taskPrompt, setTaskPrompt] = useState('');
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [newBranchName, setNewBranchName] = useState('');
+  const [newBranchType, setNewBranchType] = useState<GraphEntity['type']>('dev');
+  const [newBranchWorktree, setNewBranchWorktree] = useState('feat/new-task');
+  const [selectedSkillsToInject, setSelectedSkillsToInject] = useState<string[]>([]);
 
-  const entity = entities.find((e) => e.id === selectedEntityId) || entities[0];
-  if (!entity) return null;
-
-  const tokenPercent = Math.min(100, Math.round((entity.tokenUsed / entity.tokenMax) * 100));
-  const isWorking = entity.status === 'WORKING';
-  const isCompacting = entity.status === 'COMPACTING';
-
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreateBranch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEntityName.trim()) return;
-    addEntity(newEntityName, newEntityType, newEntityWorktree);
-    setNewEntityName('');
-    setIsAddFormOpen(false);
+    if (!newBranchName.trim()) return;
+    addEntity(newBranchName, newBranchType, newBranchWorktree);
+    setNewBranchName('');
+    setIsAddOpen(false);
   };
 
-  const handleDispatch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!taskPrompt.trim()) return;
-    dispatchTaskToEntity(entity.id, taskPrompt.trim());
-    setTaskPrompt('');
+  const handleToggleSkill = (skillId: string) => {
+    setSelectedSkillsToInject((prev) =>
+      prev.includes(skillId) ? prev.filter((id) => id !== skillId) : [...prev, skillId]
+    );
   };
+
+  const handleApplySkills = () => {
+    if (selectedSkillsToInject.length === 0 || selectedSessionIds.length === 0) return;
+    applySkillsToSelected(selectedSkillsToInject);
+    setSelectedSkillsToInject([]);
+  };
+
+  const allSelected = entities.length > 0 && selectedSessionIds.length === entities.length;
 
   return (
-    <aside className="w-96 shrink-0 bg-[#0a0a0a] border-l border-[#1a1a1a] flex flex-col h-full select-none text-xs z-10">
-      {/* Node Details Header */}
-      <div className="p-4 border-b border-[#1a1a1a] flex items-center justify-between bg-[#000000]">
-        <div className="flex items-center space-x-2">
-          <span className="font-semibold text-sm tracking-tight text-[#ffffff]">
-            Node Details
-          </span>
-          <span
-            className={`text-[9px] font-mono px-2 py-0.5 rounded border ${
-              isWorking
-                ? 'bg-[#e11d48]/20 text-[#e11d48] border-[#e11d48]/50 animate-pulse font-bold'
-                : isCompacting
-                ? 'bg-[#f59e0b]/20 text-[#f59e0b] border-[#f59e0b]/50'
-                : 'bg-[#141414] text-[#888888] border-[#222222]'
-            }`}
+    <aside className="w-88 shrink-0 bg-[#080808] border-l border-[#1a1a1a] flex flex-col h-full select-none text-xs z-10">
+      {/* 1. Header & Fast Memory Compact Actions */}
+      <div className="p-4 border-b border-[#1a1a1a] bg-[#000000]">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2">
+            <SlidersHorizontal className="w-4 h-4 text-[#e11d48]" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#ffffff] font-mono">
+              Inspector & Actions
+            </span>
+          </div>
+          <button
+            onClick={() => setIsAddOpen(!isAddOpen)}
+            className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#e11d48]/10 hover:bg-[#e11d48]/20 border border-[#e11d48]/50 text-[#e11d48] text-xs font-medium transition-all"
           >
-            [{entity.status}]
-          </span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Branch</span>
+          </button>
         </div>
 
-        <div className="flex items-center space-x-1">
+        {/* Compact Action Buttons */}
+        <div className="grid grid-cols-2 gap-2">
           <button
-            onClick={() => setIsAddFormOpen(!isAddFormOpen)}
-            className="p-1 rounded hover:bg-[#1a1a1a] text-[#888888] hover:text-[#ffffff] transition-colors"
-            title="Add New Entity Node"
+            onClick={compactAllEntities}
+            className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded bg-[#111111] hover:bg-[#1a1a1a] border border-[#262626] text-xs font-medium text-[#f5f5f5] transition-all"
+            title="Compact memory transcripts across all sessions"
           >
-            <Plus className="w-4 h-4 text-[#e11d48]" />
+            <Scissors className="w-3 h-3 text-[#e11d48]" />
+            <span>Compact All</span>
           </button>
-          {entity.id !== 'hub-main' && (
-            <button
-              onClick={() => removeEntity(entity.id)}
-              className="p-1 rounded hover:bg-[#1a1a1a] text-[#888888] hover:text-[#ef4444] transition-colors"
-              title="Delete Entity Node"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          )}
+
+          <button
+            onClick={compactSelectedEntities}
+            disabled={selectedSessionIds.length === 0}
+            className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded bg-[#111111] hover:bg-[#1a1a1a] border border-[#262626] text-xs font-medium text-[#f5f5f5] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            title="Compact memory for checked sessions only"
+          >
+            <Scissors className="w-3 h-3 text-[#f59e0b]" />
+            <span>Compact Select</span>
+          </button>
         </div>
       </div>
 
-      {/* Inline Create Form */}
-      {isAddFormOpen && (
-        <form onSubmit={handleCreate} className="p-3 bg-[#111111] border-b border-[#222222] space-y-2">
+      {/* 2. Inline Form: Add New Branch */}
+      {isAddOpen && (
+        <form onSubmit={handleCreateBranch} className="p-3 bg-[#111111] border-b border-[#222222] space-y-2">
           <div className="text-[10px] font-mono font-bold text-[#e11d48] uppercase">
-            Create Entity Node
+            Create Synapse Branch
           </div>
           <input
             type="text"
-            placeholder="Entity Name (e.g., Dev 3 - Audio)"
-            value={newEntityName}
-            onChange={(e) => setNewEntityName(e.target.value)}
-            className="w-full bg-[#000000] border border-[#222222] rounded px-2.5 py-1 text-xs text-[#ffffff] focus:outline-none focus:border-[#e11d48]"
+            placeholder="Branch Name (e.g., Dev 3 - Audio)"
+            value={newBranchName}
+            onChange={(e) => setNewBranchName(e.target.value)}
+            className="w-full bg-[#000000] border border-[#222222] rounded text-xs px-2.5 py-1 text-[#ffffff] placeholder-[#555555] focus:outline-none focus:border-[#e11d48]"
             autoFocus
           />
           <div className="grid grid-cols-2 gap-2">
             <select
-              value={newEntityType}
-              onChange={(e) => setNewEntityType(e.target.value as GraphEntity['type'])}
-              className="bg-[#000000] border border-[#222222] rounded px-2 py-1 text-xs text-[#ffffff] focus:outline-none focus:border-[#e11d48]"
+              value={newBranchType}
+              onChange={(e) => setNewBranchType(e.target.value as GraphEntity['type'])}
+              className="bg-[#000000] border border-[#222222] rounded text-xs px-2 py-1 text-[#ffffff] focus:outline-none focus:border-[#e11d48]"
             >
-              <option value="dev">Type: Developer</option>
-              <option value="qa">Type: QA Auditor</option>
-              <option value="designer">Type: Designer</option>
-              <option value="skill">Type: Skill</option>
+              <option value="dev">Role: Dev</option>
+              <option value="qa">Role: QA</option>
+              <option value="designer">Role: Designer</option>
+              <option value="system">Role: System</option>
             </select>
             <input
               type="text"
-              placeholder="Worktree (e.g. feat/audio)"
-              value={newEntityWorktree}
-              onChange={(e) => setNewEntityWorktree(e.target.value)}
-              className="bg-[#000000] border border-[#222222] rounded px-2 py-1 text-xs text-[#ffffff] focus:outline-none focus:border-[#e11d48]"
+              placeholder="Git Worktree"
+              value={newBranchWorktree}
+              onChange={(e) => setNewBranchWorktree(e.target.value)}
+              className="bg-[#000000] border border-[#222222] rounded text-xs px-2 py-1 text-[#ffffff] placeholder-[#555555] focus:outline-none focus:border-[#e11d48]"
             />
           </div>
           <div className="flex justify-end space-x-2 pt-1">
             <button
               type="button"
-              onClick={() => setIsAddFormOpen(false)}
+              onClick={() => setIsAddOpen(false)}
               className="px-2.5 py-1 rounded text-xs text-[#777777] hover:text-[#ffffff]"
             >
               Cancel
@@ -146,150 +151,161 @@ export const NodeDetailSidebar: React.FC = () => {
         </form>
       )}
 
-      {/* Fields Layout */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Name */}
-        <div>
-          <div className="text-[10px] font-mono text-[#666666] uppercase mb-1">
-            Name
-          </div>
-          <div className="text-sm font-bold text-[#ffffff] tracking-tight">
-            {entity.name}
-          </div>
+      {/* 3. Pi Sessions List with Multi-Select */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        <div className="flex items-center justify-between pb-1 text-xs text-[#888888]">
+          <span className="font-semibold text-[11px] uppercase tracking-wider text-[#666666] font-mono">
+            Pi Sessions ({selectedSessionIds.length}/{entities.length})
+          </span>
+          <button
+            onClick={() => selectAllSessions(!allSelected)}
+            className="text-[11px] text-[#e11d48] hover:underline flex items-center space-x-1"
+          >
+            {allSelected ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />}
+            <span>{allSelected ? 'Deselect All' : 'Select All'}</span>
+          </button>
         </div>
 
-        {/* UUID */}
-        <div>
-          <div className="text-[10px] font-mono text-[#666666] uppercase mb-1 flex items-center space-x-1">
-            <Hash className="w-3 h-3 text-[#555555]" />
-            <span>UUID</span>
-          </div>
-          <div className="font-mono text-[11px] text-[#aaaaaa] bg-[#000000] p-2 rounded border border-[#1f1f1f] break-all select-all">
-            {entity.uuid}
-          </div>
-        </div>
+        {entities.map((session) => {
+          const isSelected = selectedSessionIds.includes(session.id);
+          const isFocusedInGraph = selectedEntityId === session.id;
+          const isWorking = session.status === 'WORKING';
+          const isCompacting = session.status === 'COMPACTING';
 
-        {/* Worktree / Branch */}
-        <div>
-          <div className="text-[10px] font-mono text-[#666666] uppercase mb-1 flex items-center space-x-1">
-            <GitBranch className="w-3 h-3 text-[#555555]" />
-            <span>Worktree Branch</span>
-          </div>
-          <div className="font-mono text-xs text-[#ffffff] bg-[#000000] px-2.5 py-1.5 rounded border border-[#1f1f1f]">
-            {entity.worktree}
-          </div>
-        </div>
-
-        {/* Created Date */}
-        <div>
-          <div className="text-[10px] font-mono text-[#666666] uppercase mb-1 flex items-center space-x-1">
-            <Clock className="w-3 h-3 text-[#555555]" />
-            <span>Created</span>
-          </div>
-          <div className="font-mono text-xs text-[#888888]">
-            {entity.createdAt}
-          </div>
-        </div>
-
-        {/* Token Memory Footprint */}
-        <div>
-          <div className="text-[10px] font-mono text-[#666666] uppercase mb-1 flex items-center justify-between">
-            <span>Memory Capacity ({tokenPercent}%)</span>
-            <span className="text-[#888888]">{((entity.tokenUsed) / 1000).toFixed(0)}k / 1.0M</span>
-          </div>
-          <div className="w-full h-1.5 bg-[#141414] rounded-full overflow-hidden border border-[#222222]">
+          return (
             <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${tokenPercent}%`,
-                backgroundColor: tokenPercent >= 80 ? '#ef4444' : tokenPercent >= 50 ? '#f59e0b' : '#10b981',
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Properties / Attached Skills */}
-        <div>
-          <div className="text-[10px] font-mono text-[#666666] uppercase mb-1.5 flex items-center space-x-1">
-            <Layers className="w-3 h-3 text-[#555555]" />
-            <span>Properties / Skills</span>
-          </div>
-          {entity.skills.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {entity.skills.map((s) => (
-                <span
-                  key={s}
-                  className="px-2 py-0.5 rounded bg-[#000000] border border-[#262626] text-[10px] font-mono text-[#cccccc]"
-                >
-                  {s}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <span className="text-[11px] text-[#555555] italic">No skills attached</span>
-          )}
-        </div>
-
-        {/* Summary */}
-        <div>
-          <div className="text-[10px] font-mono text-[#666666] uppercase mb-1">
-            Summary
-          </div>
-          <p className="text-xs text-[#aaaaaa] leading-relaxed bg-[#000000] p-3 rounded border border-[#1f1f1f]">
-            {entity.summary}
-          </p>
-        </div>
-
-        {/* Dispatch Task Form (Zero-Idle Trigger) */}
-        <form onSubmit={handleDispatch} className="space-y-1.5 pt-1">
-          <div className="text-[10px] font-mono text-[#e11d48] uppercase font-bold flex items-center space-x-1">
-            <Sparkles className="w-3 h-3" />
-            <span>Dispatch Task (Zero-Idle Trigger)</span>
-          </div>
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              placeholder={`Send prompt to ${entity.name}...`}
-              value={taskPrompt}
-              onChange={(e) => setTaskPrompt(e.target.value)}
-              className="flex-1 bg-[#000000] border border-[#222222] rounded px-2.5 py-1.5 text-xs text-[#ffffff] focus:outline-none focus:border-[#e11d48]"
-            />
-            <button
-              type="submit"
-              disabled={!taskPrompt.trim()}
-              className="px-3 py-1.5 rounded bg-[#e11d48] hover:bg-[#be123c] text-[#ffffff] font-medium disabled:opacity-40"
+              key={session.id}
+              className={`p-2.5 rounded border transition-all ${
+                isFocusedInGraph
+                  ? 'bg-[#121212] border-[#e11d48] shadow-sm'
+                  : isSelected
+                  ? 'bg-[#0f0f0f] border-[#333333]'
+                  : 'bg-[#000000] border-[#1f1f1f] hover:border-[#2b2b2b]'
+              }`}
             >
-              <Send className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </form>
+              <div className="flex items-center justify-between">
+                <div
+                  onClick={() => toggleSessionSelect(session.id)}
+                  className="flex items-center space-x-2 cursor-pointer flex-1 truncate"
+                >
+                  {isSelected ? (
+                    <CheckSquare className="w-3.5 h-3.5 text-[#e11d48] shrink-0" />
+                  ) : (
+                    <Square className="w-3.5 h-3.5 text-[#444444] shrink-0" />
+                  )}
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedEntityId(session.id);
+                    }}
+                    className={`text-xs font-medium truncate ${
+                      isFocusedInGraph ? 'text-[#ffffff] font-bold underline decoration-[#e11d48]' : 'text-[#e5e5e5]'
+                    }`}
+                  >
+                    {session.name}
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-1.5">
+                  <span
+                    className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${
+                      isWorking
+                        ? 'bg-[#e11d48]/20 text-[#e11d48] border-[#e11d48]/50 animate-pulse font-bold'
+                        : isCompacting
+                        ? 'bg-[#f59e0b]/20 text-[#f59e0b] border-[#f59e0b]/50'
+                        : 'bg-[#141414] text-[#777777] border-[#222222]'
+                    }`}
+                  >
+                    [{session.status}]
+                  </span>
+
+                  <button
+                    onClick={() => {
+                      setSelectedEntityId(session.id);
+                      setIsTerminalModalOpen(true);
+                    }}
+                    className="p-1 rounded text-[#777777] hover:text-[#e11d48] hover:bg-[#1a1a1a]"
+                    title="Inspect Live Terminal"
+                  >
+                    <Terminal className="w-3 h-3" />
+                  </button>
+
+                  {session.id !== 'hub-main' && (
+                    <button
+                      onClick={() => removeEntity(session.id)}
+                      className="p-1 rounded text-[#555555] hover:text-[#ef4444] hover:bg-[#1a1a1a]"
+                      title="Remove branch"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-1 flex items-center justify-between text-[10px] text-[#666666] font-mono">
+                <span className="flex items-center space-x-1 truncate">
+                  <GitBranch className="w-2.5 h-2.5" />
+                  <span className="truncate">{session.worktree}</span>
+                </span>
+                <span>{((session.tokenUsed / session.tokenMax) * 100).toFixed(0)}% token</span>
+              </div>
+
+              {/* Active Skills tags */}
+              {session.skills.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {session.skills.map((skillId) => (
+                    <span
+                      key={skillId}
+                      className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-[#0a0a0a] text-[#888888] border border-[#222222]"
+                    >
+                      {skillId}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* Footer Action Buttons */}
-      <div className="p-3 border-t border-[#1a1a1a] bg-[#000000] space-y-2">
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => setIsTerminalModalOpen(true)}
-            className="flex items-center justify-center space-x-1.5 py-2 px-3 rounded bg-[#111111] hover:bg-[#1a1a1a] border border-[#262626] text-xs font-semibold text-[#ffffff] transition-colors"
-          >
-            <Terminal className="w-3.5 h-3.5 text-[#e11d48]" />
-            <span>Peek Terminal</span>
-          </button>
+      {/* 4. Batch Skill Injector */}
+      <div className="p-3 border-t border-[#1a1a1a] bg-[#000000]">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-1.5 text-xs font-semibold text-[#ffffff] font-mono">
+            <Sparkles className="w-3.5 h-3.5 text-[#e11d48]" />
+            <span>Batch Skill Injector</span>
+          </div>
+          <span className="text-[10px] text-[#666666] font-mono">
+            Targets: {selectedSessionIds.length}
+          </span>
+        </div>
 
-          <button
-            onClick={() => compactEntityMemory(entity.id)}
-            className="flex items-center justify-center space-x-1.5 py-2 px-3 rounded bg-[#111111] hover:bg-[#1a1a1a] border border-[#262626] text-xs font-semibold text-[#ffffff] transition-colors"
-          >
-            <Scissors className="w-3.5 h-3.5 text-[#f59e0b]" />
-            <span>Compact Node</span>
-          </button>
+        <div className="grid grid-cols-2 gap-1.5 mb-2.5 max-h-28 overflow-y-auto">
+          {AVAILABLE_SKILLS.map((skill) => {
+            const isChecked = selectedSkillsToInject.includes(skill.id);
+            return (
+              <div
+                key={skill.id}
+                onClick={() => handleToggleSkill(skill.id)}
+                className={`px-2 py-1.5 rounded border text-[10px] font-mono cursor-pointer transition-all truncate ${
+                  isChecked
+                    ? 'bg-[#e11d48]/15 border-[#e11d48] text-[#ffffff] font-semibold'
+                    : 'bg-[#0a0a0a] border-[#222222] text-[#888888] hover:border-[#333333]'
+                }`}
+                title={skill.description}
+              >
+                {skill.name}
+              </div>
+            );
+          })}
         </div>
 
         <button
-          onClick={compactAllEntities}
-          className="w-full py-1.5 px-3 rounded bg-[#0a0a0a] hover:bg-[#141414] border border-[#222222] text-[11px] font-mono text-[#888888] hover:text-[#cccccc] transition-colors"
+          onClick={handleApplySkills}
+          disabled={selectedSkillsToInject.length === 0 || selectedSessionIds.length === 0}
+          className="w-full py-2 rounded bg-[#e11d48] hover:bg-[#be123c] text-xs font-semibold text-[#ffffff] disabled:opacity-40 disabled:cursor-not-allowed transition-all font-mono"
         >
-          [Compact All Network Memory]
+          Inject Skills to Selected ({selectedSessionIds.length})
         </button>
       </div>
     </aside>

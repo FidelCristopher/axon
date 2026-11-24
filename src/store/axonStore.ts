@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GraphEntity, GraphRelationship, NodeStatus } from '../types/axon';
+import type { GraphEntity, GraphRelationship, NodeStatus, AgentSkill } from '../types/axon';
 
 export interface EntityTypeConfig {
   type: GraphEntity['type'];
@@ -12,6 +12,16 @@ export const ENTITY_TYPE_CONFIGS: EntityTypeConfig[] = [
   { type: 'dev', label: 'Developer (feat/*)', color: '#ea580c' },
   { type: 'qa', label: 'QA & Auditor', color: '#9333ea' },
   { type: 'designer', label: 'Asset Designer', color: '#16a34a' },
+  { type: 'system', label: 'System / Utility', color: '#e11d48' },
+];
+
+export const AVAILABLE_SKILLS: AgentSkill[] = [
+  { id: 'android-compose', name: 'android-compose', description: 'Production Jetpack Compose standards & MVI state patterns', category: 'mobile' },
+  { id: 'antislop-ui', name: 'antislop-ui', description: 'Anti-slop human-crafted design system & accessible aesthetics', category: 'ui' },
+  { id: 'vector-designer', name: 'vector-designer', description: 'AOSP VectorDrawable XML pipeline without raster degradation', category: 'ui' },
+  { id: 'git-release', name: 'git-release', description: 'Conventional Commits 1.0.0 & worktree branch hygiene', category: 'git' },
+  { id: 'rust-tauri', name: 'rust-tauri', description: 'Tauri v2 native desktop shell & PTY process integration', category: 'system' },
+  { id: 'nextjs-web', name: 'nextjs-web', description: 'Next.js 15 App Router & Server Components architecture', category: 'web' },
 ];
 
 interface AxonState {
@@ -19,17 +29,22 @@ interface AxonState {
   entities: GraphEntity[];
   relationships: GraphRelationship[];
   selectedEntityId: string;
+  selectedSessionIds: string[];
   activeViewTab: 'graph' | 'split' | 'workbench';
   isTerminalModalOpen: boolean;
 
   // Actions
   setSelectedEntityId: (id: string) => void;
+  toggleSessionSelect: (id: string) => void;
+  selectAllSessions: (select: boolean) => void;
   setActiveViewTab: (tab: 'graph' | 'split' | 'workbench') => void;
   setIsTerminalModalOpen: (open: boolean) => void;
   addEntity: (name: string, type: GraphEntity['type'], worktree: string) => void;
   removeEntity: (id: string) => void;
   updateEntityStatus: (id: string, status: NodeStatus, message?: string) => void;
+  applySkillsToSelected: (skillIds: string[]) => void;
   compactEntityMemory: (id: string) => void;
+  compactSelectedEntities: () => void;
   compactAllEntities: () => void;
   dispatchTaskToEntity: (id: string, prompt: string) => void;
 }
@@ -37,10 +52,11 @@ interface AxonState {
 export const useAxonStore = create<AxonState>((set, get) => ({
   projectName: 'ChineseLearning',
   selectedEntityId: 'hub-main',
+  selectedSessionIds: ['node-dev-1', 'node-dev-2'],
   activeViewTab: 'graph',
   isTerminalModalOpen: false,
 
-  // Pure session nodes only - no skills as floating nodes
+  // Real Pi Sessions matching user workstation
   entities: [
     {
       id: 'hub-main',
@@ -85,6 +101,20 @@ export const useAxonStore = create<AxonState>((set, get) => ({
       summary: 'Specialized in reading comprehension feeds, word-level audio synchronization, and story list pagination architecture.',
     },
     {
+      id: 'node-designer',
+      uuid: 'e5518b9c-7201-49b8-9311-190ab751b32f',
+      name: 'UI Asset Designer',
+      type: 'designer',
+      worktree: 'feat/assets',
+      status: 'IDLE',
+      statusMessage: 'Vector drawables validated without raster loss',
+      tokenUsed: 89000,
+      tokenMax: 1000000,
+      skills: ['vector-designer', 'antislop-ui'],
+      createdAt: '2026-11-23 20:50:00',
+      summary: 'Produces pure Android VectorDrawable XML files and SVG assets with strict zero-emoji enforcement.',
+    },
+    {
       id: 'node-qa',
       uuid: 'b71239aa-5529-410a-8120-cf918a22114d',
       name: 'QA & Test Automation',
@@ -99,33 +129,66 @@ export const useAxonStore = create<AxonState>((set, get) => ({
       summary: 'Automated test suite and contract verification engineer. Audits commits before merging to main branch.',
     },
     {
-      id: 'node-designer',
-      uuid: 'e5518b9c-7201-49b8-9311-190ab751b32f',
-      name: 'UI Asset Designer',
-      type: 'designer',
-      worktree: 'feat/assets',
+      id: 'node-epub',
+      uuid: '7a18b29c-3321-4d10-8812-cc9182ab4401',
+      name: 'Epub Translator',
+      type: 'system',
+      worktree: 'translate-dfm',
       status: 'IDLE',
-      statusMessage: 'Vector drawables validated without raster loss',
-      tokenUsed: 89000,
+      statusMessage: 'Chapter translation complete (1.1 MB output)',
+      tokenUsed: 42000,
       tokenMax: 1000000,
-      skills: ['vector-designer', 'antislop-ui'],
-      createdAt: '2026-11-23 20:50:00',
-      summary: 'Produces pure Android VectorDrawable XML files and SVG assets with strict zero-emoji enforcement.',
+      skills: ['antislop-ui'],
+      createdAt: '2026-11-23 21:10:00',
+      summary: 'Epub translation engine with resumable chapter caching and Indonesian terminology localization.',
+    },
+    {
+      id: 'node-axon',
+      uuid: 'fa9910aa-4482-4c99-b129-ef0199aa3312',
+      name: 'Axon Meta-Dev',
+      type: 'system',
+      worktree: 'axon/main',
+      status: 'IDLE',
+      statusMessage: 'Self-hosting IDE engineer ready',
+      tokenUsed: 28000,
+      tokenMax: 1000000,
+      skills: ['rust-tauri'],
+      createdAt: '2026-11-23 21:15:00',
+      summary: 'Axon Studio self-bootstrapping agent. Modifies desktop app source code and verifies builds.',
     },
   ],
 
-  // Clean peer connections between actual sessions without textual labels
   relationships: [
     { id: 'rel-hub-dev1', source: 'hub-main', target: 'node-dev-1', label: '' },
     { id: 'rel-hub-dev2', source: 'hub-main', target: 'node-dev-2', label: '' },
-    { id: 'rel-hub-qa', source: 'hub-main', target: 'node-qa', label: '' },
     { id: 'rel-hub-designer', source: 'hub-main', target: 'node-designer', label: '' },
+    { id: 'rel-hub-qa', source: 'hub-main', target: 'node-qa', label: '' },
+    { id: 'rel-hub-epub', source: 'hub-main', target: 'node-epub', label: '' },
+    { id: 'rel-hub-axon', source: 'hub-main', target: 'node-axon', label: '' },
     { id: 'rel-dev1-qa', source: 'node-dev-1', target: 'node-qa', label: '' },
     { id: 'rel-dev2-qa', source: 'node-dev-2', target: 'node-qa', label: '' },
     { id: 'rel-dev1-designer', source: 'node-dev-1', target: 'node-designer', label: '' },
   ],
 
   setSelectedEntityId: (id) => set({ selectedEntityId: id }),
+
+  toggleSessionSelect: (id) => {
+    set((state) => {
+      const exists = state.selectedSessionIds.includes(id);
+      return {
+        selectedSessionIds: exists
+          ? state.selectedSessionIds.filter((sid) => sid !== id)
+          : [...state.selectedSessionIds, id],
+      };
+    });
+  },
+
+  selectAllSessions: (select) => {
+    set((state) => ({
+      selectedSessionIds: select ? state.entities.map((e) => e.id) : [],
+    }));
+  },
+
   setActiveViewTab: (tab) => set({ activeViewTab: tab }),
   setIsTerminalModalOpen: (open) => set({ isTerminalModalOpen: open }),
 
@@ -164,6 +227,7 @@ export const useAxonStore = create<AxonState>((set, get) => ({
     set((state) => ({
       entities: state.entities.filter((e) => e.id !== id),
       relationships: state.relationships.filter((r) => r.source !== id && r.target !== id),
+      selectedSessionIds: state.selectedSessionIds.filter((sid) => sid !== id),
       selectedEntityId: state.selectedEntityId === id ? 'hub-main' : state.selectedEntityId,
     }));
   },
@@ -173,6 +237,16 @@ export const useAxonStore = create<AxonState>((set, get) => ({
       entities: state.entities.map((e) =>
         e.id === id ? { ...e, status, statusMessage: message ?? e.statusMessage } : e
       ),
+    }));
+  },
+
+  applySkillsToSelected: (skillIds) => {
+    set((state) => ({
+      entities: state.entities.map((e) => {
+        if (!state.selectedSessionIds.includes(e.id)) return e;
+        const merged = Array.from(new Set([...e.skills, ...skillIds]));
+        return { ...e, skills: merged };
+      }),
     }));
   },
 
@@ -187,6 +261,29 @@ export const useAxonStore = create<AxonState>((set, get) => ({
       set((state) => ({
         entities: state.entities.map((e) =>
           e.id === id
+            ? { ...e, status: 'IDLE', tokenUsed: Math.floor(e.tokenUsed * 0.25), statusMessage: 'Compacted cleanly' }
+            : e
+        ),
+      }));
+    }, 1000);
+  },
+
+  compactSelectedEntities: () => {
+    const selectedIds = get().selectedSessionIds;
+    if (selectedIds.length === 0) return;
+
+    set((state) => ({
+      entities: state.entities.map((e) =>
+        selectedIds.includes(e.id)
+          ? { ...e, status: 'COMPACTING', statusMessage: 'Compacting selected memory...' }
+          : e
+      ),
+    }));
+
+    setTimeout(() => {
+      set((state) => ({
+        entities: state.entities.map((e) =>
+          selectedIds.includes(e.id)
             ? { ...e, status: 'IDLE', tokenUsed: Math.floor(e.tokenUsed * 0.25), statusMessage: 'Compacted cleanly' }
             : e
         ),
