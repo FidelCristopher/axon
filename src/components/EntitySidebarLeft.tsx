@@ -44,7 +44,7 @@ function formatRelativeTime(timestamp: number): string {
 }
 
 export const EntitySidebarLeft: React.FC = () => {
-  const { setSelectedEntityId } = useAxonStore();
+  const { selectSessionTopology } = useAxonStore();
 
   const [sessions, setSessions] = useState<PiSessionItem[]>(() => {
     return (initialPiSessions as PiSessionItem[]).map((s) => ({
@@ -243,17 +243,7 @@ export const EntitySidebarLeft: React.FC = () => {
               onClick={() => {
                 if (isEditing) return;
                 setSelectedSessionFile(session.id);
-                if (session.name.toLowerCase().includes('dev 1') || session.name.toLowerCase().includes('part1')) {
-                  setSelectedEntityId('node-dev-1');
-                } else if (session.name.toLowerCase().includes('dev 2') || session.name.toLowerCase().includes('part2')) {
-                  setSelectedEntityId('node-dev-2');
-                } else if (session.name.toLowerCase().includes('designer') || session.name.toLowerCase().includes('asset')) {
-                  setSelectedEntityId('node-designer');
-                } else if (session.name.toLowerCase().includes('qa')) {
-                  setSelectedEntityId('node-qa');
-                } else {
-                  setSelectedEntityId('hub-main');
-                }
+                selectSessionTopology(session);
               }}
               onContextMenu={(e) => handleContextMenu(e, session)}
               className={`px-3 py-2 rounded-md border cursor-pointer transition-all relative group ${

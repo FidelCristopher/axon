@@ -1,7 +1,10 @@
 import React from 'react';
 import { RotateCcw, Maximize } from 'lucide-react';
+import { useAxonStore } from '../store/axonStore';
 
 export const EntityGraphHeader: React.FC = () => {
+  const { projectName } = useAxonStore();
+
   const handleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
@@ -12,11 +15,15 @@ export const EntityGraphHeader: React.FC = () => {
 
   return (
     <header className="h-14 bg-[#ffffff] border-b border-[#e2e8f0] px-6 flex items-center justify-between select-none z-20 shadow-xs">
-      {/* Brand Title (Ultra Clean) */}
-      <div className="flex items-center space-x-3">
+      {/* Brand Title & Active Session Project Identifier */}
+      <div className="flex items-center space-x-2.5">
         <h1 className="text-base font-black tracking-widest text-[#0f172a] uppercase font-mono">
           AXON
         </h1>
+        <span className="text-[#cbd5e1] font-mono text-xs">/</span>
+        <span className="text-xs font-bold text-[#e11d48] font-mono bg-[#e11d48]/10 px-2.5 py-0.5 rounded border border-[#e11d48]/20 truncate max-w-[320px]">
+          {projectName}
+        </span>
       </div>
 
       {/* Controls: Refresh & Fullscreen */}

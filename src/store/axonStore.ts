@@ -180,9 +180,11 @@ interface AxonState {
   selectedSessionIds: string[];
   activeViewTab: 'graph' | 'split' | 'workbench';
   isTerminalModalOpen: boolean;
+  sessionTopologies: Record<string, { entities: GraphEntity[]; relationships: GraphRelationship[] }>;
 
   // Actions
   switchProject: (projectId: string) => void;
+  selectSessionTopology: (session: { id: string; name: string; category?: string; role?: string; tokens?: number; size?: number }) => void;
   setSelectedEntityId: (id: string) => void;
   toggleSessionSelect: (id: string) => void;
   selectAllSessions: (select: boolean) => void;
@@ -203,6 +205,21 @@ interface AxonState {
 export const useAxonStore = create<AxonState>((set, get) => {
   const defaultProj = PROJECT_WORKSPACES[0];
 
+  const initialTopologies: Record<string, { entities: GraphEntity[]; relationships: GraphRelationship[] }> = {
+    [defaultProj.id]: {
+      entities: defaultProj.entities,
+      relationships: defaultProj.relationships,
+    },
+    [PROJECT_WORKSPACES[1].id]: {
+      entities: PROJECT_WORKSPACES[1].entities,
+      relationships: PROJECT_WORKSPACES[1].relationships,
+    },
+    [PROJECT_WORKSPACES[2].id]: {
+      entities: PROJECT_WORKSPACES[2].entities,
+      relationships: PROJECT_WORKSPACES[2].relationships,
+    },
+  };
+
   return {
     activeProjectId: defaultProj.id,
     projectName: defaultProj.name,
@@ -212,6 +229,103 @@ export const useAxonStore = create<AxonState>((set, get) => {
     selectedSessionIds: ['node-dev-1', 'node-dev-2'],
     activeViewTab: 'graph',
     isTerminalModalOpen: false,
+    sessionTopologies: initialTopologies,
+
+    selectSessionTopology: (session) => {
+      const currentId = get().activeProjectId;
+      const currentEntities = get().entities;
+      const currentRelationships = get().relationships;
+
+      const topologies = { ...get().sessionTopologies };
+      if (currentId) {
+        topologies[currentId] = {
+          entities: currentEntities,
+          relationships: currentRelationships,
+        };
+      }
+
+      let targetTopology = topologies[session.id];
+
+      if (!targetTopology) {
+        const lowerName = session.name.toLowerCase();
+        const isChinese = lowerName.includes('chinese') || lowerName.includes('hanzi') || lowerName.includes('hsk');
+        const isMatcha = lowerName.includes('matcha');
+
+        if (isChinese) {
+          const chineseProj = PROJECT_WORKSPACES[0];
+          targetTopology = {
+            entities: chineseProj.entities,
+            relationships: chineseProj.relationships,
+          };
+        } else if (isMatcha) {
+          const matchaRoot: GraphEntity = {
+            id: `matcha-main-${session.id}`,
+            uuid: session.id,
+            name: 'Matcha Showcase (Main)',
+            type: 'hub',
+            worktree: 'main',
+            status: 'IDLE',
+            statusMessage: 'Live menu & customizer orchestrator',
+            tokenUsed: session.tokens || 31000,
+            tokenMax: 1000000,
+            skills: ['nextjs-web', 'antislop-ui'],
+            createdAt: 'Active Pi Session',
+            summary: 'Artisan Matcha simulation & beverage ordering app.',
+          };
+          const matchaDev: GraphEntity = {
+            id: `matcha-craft-${session.id}`,
+            uuid: `${session.id}-craft`,
+            name: 'Custom Beverage Craft',
+            type: 'dev',
+            worktree: 'pages/customize',
+            status: 'IDLE',
+            statusMessage: 'Beverage SVG craft & pricing math',
+            tokenUsed: 12000,
+            tokenMax: 1000000,
+            skills: ['antislop-ui'],
+            createdAt: 'Active Pi Session',
+            summary: 'Interactive tumbler SVG sketch and ingredient layer controller.',
+          };
+          targetTopology = {
+            entities: [matchaRoot, matchaDev],
+            relationships: [
+              { id: `rel-matcha-${session.id}`, source: matchaRoot.id, target: matchaDev.id, label: '' },
+            ],
+          };
+        } else {
+          // Dynamic Single Node representing this exact session
+          const singleNode: GraphEntity = {
+            id: `node-${session.id}`,
+            uuid: session.id,
+            name: session.name,
+            type: (session.role as any) || 'dev',
+            worktree: session.category === 'Global' ? 'main' : session.category || 'main',
+            status: 'IDLE',
+            statusMessage: 'Session entity ready (Zero-Idle)',
+            tokenUsed: session.tokens || 15000,
+            tokenMax: 1000000,
+            skills: ['antislop-ui'],
+            createdAt: 'Active Pi Session',
+            summary: `Pi session: ${session.name} (${session.category || 'Local'}). Click to inspect terminal.`,
+          };
+          targetTopology = {
+            entities: [singleNode],
+            relationships: [],
+          };
+        }
+        topologies[session.id] = targetTopology;
+      }
+
+      set({
+        sessionTopologies: topologies,
+        activeProjectId: session.id,
+        projectName: session.name,
+        entities: targetTopology.entities,
+        relationships: targetTopology.relationships,
+        selectedEntityId: targetTopology.entities[0]?.id || '',
+        selectedSessionIds: targetTopology.entities.map((e) => e.id),
+      });
+    },
 
     switchProject: (projectId) => {
       const proj = PROJECT_WORKSPACES.find((p) => p.id === projectId) || PROJECT_WORKSPACES[0];
