@@ -22,21 +22,24 @@ interface ChatMessageItem {
 }
 
 /**
- * Pixel-Perfect WezTerm / Pi Terminal Syntax Highlighting:
- * - Headers (###): Yellow (#facc15)
- * - Numbered Lists (1., 2.): Magenta (#f43f5e)
- * - Bullets (- , *): Rose (#e11d48)
- * - Inline Code (`code`): Purple / Pink (#e879f9)
- * - Bold (**text**): High-contrast White (#ffffff)
- * - Dividers (---): Subtle terminal horizontal rule (#27272a)
+ * 100% Authentic WezTerm / Pi CLI Syntax Highlighting:
+ * - Font: JetBrains Mono / Cascadia Code
+ * - Headings (###): Bright Yellow (#ffff00)
+ * - Lists (1., 2.): Bright Magenta (#ff00ff)
+ * - Bullets (-): Magenta / Off-White
+ * - Inline Code (`code`) & URLs: Bright Magenta (#ff79c6 / #ff00ff)
+ * - Bold (**text**): Pure White (#ffffff)
+ * - Body Text: ANSI Light Gray (#d4d4d4)
+ * - Dividers (---): Dark Gray (#262626)
  */
 function renderInlineHighlights(str: string) {
-  const parts = str.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
+  // Regex to split by `code`, **bold**, and URLs
+  const parts = str.split(/(`[^`]+`|\*\*[^*]+\*\*|https?:\/\/[^\s]+)/g);
 
   return parts.map((part, pIdx) => {
     if (part.startsWith('`') && part.endsWith('`')) {
       return (
-        <span key={pIdx} className="text-[#e879f9] bg-[#18181b] px-1 py-0.2 rounded font-mono">
+        <span key={pIdx} className="text-[#ff79c6] font-mono">
           {part.slice(1, -1)}
         </span>
       );
@@ -48,7 +51,14 @@ function renderInlineHighlights(str: string) {
         </span>
       );
     }
-    return <span key={pIdx}>{part}</span>;
+    if (part.startsWith('http://') || part.startsWith('https://')) {
+      return (
+        <span key={pIdx} className="text-[#ff00ff] underline font-mono hover:text-[#ff79c6]">
+          {part}
+        </span>
+      );
+    }
+    return <span key={pIdx} className="text-[#d4d4d4]">{part}</span>;
   });
 }
 
@@ -63,56 +73,65 @@ function formatWezTermText(text: string) {
     // Terminal Horizontal Line (--- or ───)
     if (trimmed.startsWith('---') || trimmed.startsWith('───') || trimmed.startsWith('***')) {
       return (
-        <div key={lIdx} className="border-t border-[#27272a] my-2 w-full" />
+        <div key={lIdx} className="border-t border-[#262626] my-2 w-full" />
       );
     }
 
-    // Markdown Headers: ### Header -> Yellow (#facc15)
+    // Markdown Headers: ### Header -> Bright Yellow (#ffff00)
     if (trimmed.startsWith('###')) {
       return (
-        <div key={lIdx} className="text-[#facc15] font-bold text-xs mt-3 mb-1 font-mono tracking-tight">
+        <div key={lIdx} className="text-[#ffff00] font-bold text-xs mt-3 mb-1 font-mono tracking-normal">
           {line.replace(/^###\s*/, '### ')}
         </div>
       );
     }
     if (trimmed.startsWith('##')) {
       return (
-        <div key={lIdx} className="text-[#facc15] font-bold text-xs mt-3 mb-1 font-mono tracking-tight">
+        <div key={lIdx} className="text-[#ffff00] font-bold text-xs mt-3 mb-1 font-mono tracking-normal">
           {line.replace(/^##\s*/, '## ')}
         </div>
       );
     }
 
-    // Numbered List: 1. , 2. -> Magenta Number (#f43f5e)
+    // Numbered List: 1. , 2. -> Bright Magenta (#ff00ff)
     const numberedMatch = line.match(/^(\s*)(\d+\.)\s*(.*)/);
     if (numberedMatch) {
       const indent = numberedMatch[1];
       const num = numberedMatch[2];
       const rest = numberedMatch[3];
       return (
-        <div key={lIdx} className="flex items-start space-x-1.5 leading-relaxed font-mono text-xs text-[#e4e4e7]">
-          <span className="text-[#f43f5e] font-bold shrink-0">{indent}{num}</span>
+        <div key={lIdx} className="flex items-start space-x-1.5 leading-relaxed font-mono text-xs text-[#d4d4d4]">
+          <span className="text-[#ff00ff] font-bold shrink-0">{indent}{num}</span>
           <span>{renderInlineHighlights(rest)}</span>
         </div>
       );
     }
 
-    // Bullet Points: - or * -> Rose Bullet (#e11d48)
+    // Bullet Points: - or *
     const bulletMatch = line.match(/^(\s*)([-*])\s*(.*)/);
     if (bulletMatch) {
       const indent = bulletMatch[1];
       const rest = bulletMatch[3];
       return (
-        <div key={lIdx} className="flex items-start space-x-1.5 leading-relaxed font-mono text-xs text-[#e4e4e7]">
-          <span className="text-[#e11d48] shrink-0 font-bold">{indent}•</span>
+        <div key={lIdx} className="flex items-start space-x-1.5 leading-relaxed font-mono text-xs text-[#d4d4d4]">
+          <span className="text-[#ff00ff] shrink-0 font-bold">{indent}-</span>
           <span>{renderInlineHighlights(rest)}</span>
+        </div>
+      );
+    }
+
+    // Compaction notice line
+    if (trimmed.startsWith('[✂️') || trimmed.includes('compacted cleanly')) {
+      return (
+        <div key={lIdx} className="my-2 py-0.5 text-[#ff79c6] font-mono text-xs font-semibold">
+          {renderInlineHighlights(line)}
         </div>
       );
     }
 
     // Regular terminal lines
     return (
-      <div key={lIdx} className="leading-relaxed font-mono text-xs text-[#e4e4e7] whitespace-pre-wrap">
+      <div key={lIdx} className="leading-relaxed font-mono text-xs text-[#d4d4d4] whitespace-pre-wrap">
         {renderInlineHighlights(line)}
       </div>
     );
@@ -428,7 +447,7 @@ export const PeekTerminalModal: React.FC = () => {
       {
         id: `compact-${Date.now()}`,
         role: 'system_notice',
-        text: 'Session memory compacted cleanly. Old turns pruned to preserve token efficiency.',
+        text: 'Session memory compacted cleanly • Token footprint refreshed',
         timestamp: Date.now(),
       },
     ]);
@@ -449,87 +468,87 @@ export const PeekTerminalModal: React.FC = () => {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onPaste={handlePaste}
-        className="w-[880px] max-w-[95vw] h-[640px] bg-[#000000] border border-[#27272a] rounded-lg shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 relative text-[#e4e4e7] font-mono"
+        className="w-[900px] max-w-[96vw] h-[650px] bg-[#000000] border border-[#262626] rounded-md shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 relative text-[#d4d4d4] wezterm-terminal"
       >
         {/* Drag and Drop Image Dropzone Overlay */}
         {isDraggingOver && (
-          <div className="absolute inset-0 bg-[#000000]/90 backdrop-blur-xs z-50 flex flex-col items-center justify-center border-2 border-dashed border-[#e11d48] text-white space-y-2 pointer-events-none animate-in fade-in duration-150 font-mono">
-            <div className="w-12 h-12 rounded-full bg-[#e11d48]/20 flex items-center justify-center border border-[#e11d48]/50">
-              <ImageIcon className="w-6 h-6 text-[#e11d48]" />
+          <div className="absolute inset-0 bg-[#000000]/95 backdrop-blur-xs z-50 flex flex-col items-center justify-center border-2 border-dashed border-[#ff00ff] text-white space-y-2 pointer-events-none animate-in fade-in duration-150 font-mono">
+            <div className="w-12 h-12 rounded-full bg-[#ff00ff]/20 flex items-center justify-center border border-[#ff00ff]/50">
+              <ImageIcon className="w-6 h-6 text-[#ff00ff]" />
             </div>
-            <div className="text-xs font-bold text-[#facc15]">Drop Image(s) Here to Attach</div>
-            <div className="text-[10px] text-[#a1a1aa]">PNG, JPG, WebP, GIF supported (Auto-staged)</div>
+            <div className="text-xs font-bold text-[#ffff00]">Drop Image(s) Here to Attach</div>
+            <div className="text-[10px] text-[#737373]">PNG, JPG, WebP, GIF supported (Auto-staged)</div>
           </div>
         )}
 
-        {/* WezTerm Style Window Header */}
-        <div className="px-4 py-2.5 bg-[#09090b] border-b border-[#27272a] flex items-center justify-between text-xs">
+        {/* WezTerm Style Window Header Bar */}
+        <div className="px-4 py-2 bg-[#000000] border-b border-[#262626] flex items-center justify-between text-xs font-mono">
           <div className="flex items-center space-x-2.5">
             <div className="w-2.5 h-2.5 rounded-full bg-[#e11d48] animate-pulse" />
             <div className="flex items-center space-x-2">
-              <span className="font-bold text-[#ffffff] font-mono">{entity.name}</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#18181b] text-[#f43f5e] border border-[#27272a] font-semibold">
+              <span className="font-bold text-[#ffffff]">{entity.name}</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#18181b] text-[#ff00ff] border border-[#262626] font-semibold">
                 [{entity.status}]
               </span>
-              <span className="text-[10px] text-[#71717a]">
+              <span className="text-[10px] text-[#737373]">
                 ~ {resolveCwd(entity)}
               </span>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
-            <span className="text-[10px] text-[#71717a]">
+            <span className="text-[10px] text-[#737373]">
               {chatMessages.length} turns • {((entity.tokenUsed / entity.tokenMax) * 100).toFixed(0)}% mem
             </span>
             <button
               onClick={handleManualCompact}
-              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#18181b] hover:bg-[#27272a] border border-[#3f3f46] text-xs font-semibold text-[#facc15] transition-all font-mono shadow-xs"
+              className="flex items-center space-x-1 px-2.5 py-0.5 rounded bg-[#18181b] hover:bg-[#262626] border border-[#262626] text-xs font-semibold text-[#ffff00] transition-all font-mono"
               title="Compact session memory"
             >
-              <Scissors className="w-3 h-3 text-[#facc15]" />
+              <Scissors className="w-3 h-3 text-[#ffff00]" />
               <span>Compact</span>
             </button>
             <button
               onClick={() => setIsTerminalModalOpen(false)}
-              className="p-1 rounded hover:bg-[#18181b] text-[#71717a] hover:text-[#ffffff] transition-colors"
+              className="p-1 rounded hover:bg-[#18181b] text-[#737373] hover:text-[#ffffff] transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Terminal Content Body (Authentic WezTerm CLI Canvas) */}
-        <div className="flex-1 bg-[#000000] p-4 overflow-y-auto space-y-3 font-mono text-xs">
-          {/* Top WezTerm Header Line */}
-          <div className="border-b border-[#27272a] pb-2 text-[11px] text-[#71717a] flex items-center justify-between">
+        {/* Terminal Content Body (Authentic WezTerm CLI Monospace Canvas) */}
+        <div className="flex-1 bg-[#000000] p-4 overflow-y-auto space-y-3 font-mono text-[13px] leading-relaxed select-text">
+          {/* Top Divider */}
+          <div className="border-b border-[#262626] pb-1.5 text-[11px] text-[#737373] flex items-center justify-between select-none">
             <div>
-              <span className="text-[#38bdf8]">~ • {entity.name}</span>
-              <span className="text-[#52525b] ml-2 font-mono">({entity.worktree})</span>
+              <span className="text-[#00ffff]">~ • {entity.name}</span>
+              <span className="text-[#525252] ml-2">({entity.worktree})</span>
             </div>
-            <div className="text-[#a1a1aa]">
+            <div className="text-[#737373]">
               (antigravity) gemini-4-neon • zero-idle
             </div>
           </div>
 
           {/* Loading Indicator */}
           {isLoadingHistory ? (
-            <div className="flex flex-col items-center justify-center py-16 text-[#71717a] font-mono text-xs space-y-2">
-              <div className="w-5 h-5 border-2 border-[#e11d48] border-t-transparent rounded-full animate-spin" />
+            <div className="flex flex-col items-center justify-center py-16 text-[#737373] font-mono text-xs space-y-2 select-none">
+              <div className="w-5 h-5 border-2 border-[#ff00ff] border-t-transparent rounded-full animate-spin" />
               <span>[reading session logs from ~/.pi/agent/sessions/...]</span>
             </div>
           ) : chatMessages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-[#71717a] font-mono text-xs space-y-1 text-center">
-              <div className="text-sm font-bold text-[#facc15]">&gt; Terminal Session Initialized</div>
-              <p className="text-[11px] text-[#71717a]">
-                Type a prompt below or paste an image (Ctrl+V) to begin execution.
+            <div className="flex flex-col items-center justify-center py-16 text-[#737373] font-mono text-xs space-y-1 text-center select-none">
+              <div className="text-xs font-bold text-[#ffff00]">&gt; Terminal Session Initialized</div>
+              <p className="text-[11px] text-[#737373]">
+                Type prompt or paste screenshot (Ctrl+V) to begin execution.
               </p>
             </div>
           ) : (
             chatMessages.map((msg, index) => {
               if (msg.role === 'system_notice') {
                 return (
-                  <div key={msg.id || index} className="my-3 py-1 border-y border-[#27272a] text-center">
-                    <span className="text-[#e879f9] text-[11px] font-mono font-semibold">
+                  <div key={msg.id || index} className="my-2.5 py-1 border-y border-[#262626] text-center select-none">
+                    <span className="text-[#ff79c6] text-[11px] font-mono font-semibold">
                       [✂️ {msg.text}]
                     </span>
                   </div>
@@ -542,11 +561,11 @@ export const PeekTerminalModal: React.FC = () => {
                 <div key={msg.id || index} className="space-y-1">
                   {/* User Turn Prompt Line */}
                   {isUser ? (
-                    <div className="pt-2 border-t border-[#27272a] space-y-1">
-                      <div className="flex items-center space-x-2 text-[#38bdf8] font-bold text-xs">
+                    <div className="pt-2 border-t border-[#262626] space-y-1">
+                      <div className="flex items-center space-x-2 text-[#00ffff] font-bold text-xs">
                         <span>&gt; User:</span>
                         {msg.timestamp && (
-                          <span className="text-[10px] text-[#52525b] font-normal font-mono">
+                          <span className="text-[10px] text-[#737373] font-normal font-mono">
                             [{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}]
                           </span>
                         )}
@@ -556,7 +575,7 @@ export const PeekTerminalModal: React.FC = () => {
                       {msg.attachedImages && msg.attachedImages.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 my-1.5">
                           {msg.attachedImages.map((src, imgIdx) => (
-                            <div key={imgIdx} className="w-20 h-20 rounded border border-[#27272a] overflow-hidden bg-[#09090b]">
+                            <div key={imgIdx} className="w-24 h-24 rounded border border-[#262626] overflow-hidden bg-[#0a0a0a]">
                               <img src={src} alt="Attached" className="w-full h-full object-cover" />
                             </div>
                           ))}
@@ -564,28 +583,28 @@ export const PeekTerminalModal: React.FC = () => {
                       )}
 
                       {msg.text && (
-                        <div className="text-[#f4f4f5] font-mono pl-4 leading-relaxed whitespace-pre-wrap select-text">
+                        <div className="text-[#ffffff] font-mono pl-3 leading-relaxed whitespace-pre-wrap select-text">
                           {msg.text}
                         </div>
                       )}
                     </div>
                   ) : (
                     /* Assistant Turn (WezTerm High-Contrast Syntax Highlighted) */
-                    <div className="space-y-1.5 pl-1">
+                    <div className="space-y-1 pl-1">
                       {/* Tool Invocations in WezTerm CLI Style */}
                       {msg.tools && msg.tools.length > 0 && (
                         <div className="my-1.5 space-y-0.5">
                           {msg.tools.map((t: any, tIdx: number) => (
                             <div
                               key={tIdx}
-                              className="text-[11px] font-mono text-[#a1a1aa] flex items-center space-x-1.5"
+                              className="text-[11px] font-mono text-[#a3a3a3] flex items-center space-x-1.5"
                             >
-                              <span className="text-[#ec4899] font-bold">$</span>
-                              <span className="text-[#38bdf8] font-semibold">
+                              <span className="text-[#ff00ff] font-bold">$</span>
+                              <span className="text-[#00ffff] font-semibold">
                                 {t.name || 'tool'}
                               </span>
-                              <span className="text-[#71717a] truncate max-w-[500px]">
-                                {t.args ? JSON.stringify(t.args).slice(0, 90) : t.output ? String(t.output).slice(0, 70) : ''}
+                              <span className="text-[#737373] truncate max-w-[550px]">
+                                {t.args ? JSON.stringify(t.args).slice(0, 95) : t.output ? String(t.output).slice(0, 75) : ''}
                               </span>
                             </div>
                           ))}
@@ -609,15 +628,15 @@ export const PeekTerminalModal: React.FC = () => {
 
         {/* Attached Images Preview Strip */}
         {attachedImages.length > 0 && (
-          <div className="px-3 py-2 bg-[#09090b] border-t border-[#27272a] flex items-center space-x-2 overflow-x-auto">
-            <span className="text-[10px] font-mono text-[#a1a1aa] shrink-0 font-semibold">
+          <div className="px-3 py-2 bg-[#0a0a0a] border-t border-[#262626] flex items-center space-x-2 overflow-x-auto">
+            <span className="text-[10px] font-mono text-[#737373] shrink-0 font-semibold">
               Attached ({attachedImages.length}/10):
             </span>
             <div className="flex items-center space-x-2">
               {attachedImages.map((img) => (
                 <div
                   key={img.id}
-                  className="relative group shrink-0 w-11 h-11 rounded border border-[#3f3f46] overflow-hidden bg-[#18181b] shadow-xs"
+                  className="relative group shrink-0 w-11 h-11 rounded border border-[#262626] overflow-hidden bg-[#000000] shadow-xs"
                 >
                   <img src={img.previewUrl} alt={img.name} className="w-full h-full object-cover" />
                   <button
@@ -648,13 +667,13 @@ export const PeekTerminalModal: React.FC = () => {
         />
 
         {/* WezTerm Style Bottom Telemetry Status Line */}
-        <div className="px-3 py-1 bg-[#09090b] border-t border-[#27272a] flex items-center justify-between text-[10px] text-[#71717a] font-mono">
+        <div className="px-3 py-1 bg-[#000000] border-t border-[#262626] flex items-center justify-between text-[11px] text-[#737373] font-mono select-none">
           <div className="flex items-center space-x-2">
-            <span className="text-[#38bdf8]">~ • {entity.name}</span>
+            <span className="text-[#00ffff]">~ • {entity.name}</span>
             <span>|</span>
-            <span>↑14M ↓808k</span>
+            <span>↑14M ↓808k R323M CH99.3%</span>
             <span>|</span>
-            <span className="text-[#10b981]">mem: {((entity.tokenUsed / entity.tokenMax) * 100).toFixed(0)}%</span>
+            <span className="text-[#a3e635]">{((entity.tokenUsed / entity.tokenMax) * 100).toFixed(0)}%/1.0M (auto)</span>
           </div>
           <div className="flex items-center space-x-2">
             <span>(antigravity) gemini-4-neon • medium</span>
@@ -662,17 +681,17 @@ export const PeekTerminalModal: React.FC = () => {
         </div>
 
         {/* WezTerm CLI Style Input Bar */}
-        <form onSubmit={handleSendPrompt} className="p-2 bg-[#09090b] border-t border-[#27272a] flex items-center space-x-2 font-mono">
+        <form onSubmit={handleSendPrompt} className="p-2 bg-[#000000] border-t border-[#262626] flex items-center space-x-2 font-mono">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="p-1.5 rounded hover:bg-[#18181b] text-[#71717a] hover:text-[#facc15] border border-[#27272a] transition-colors shrink-0"
-            title="Insert / Attach Image (or paste with Ctrl+V / drag & drop)"
+            className="p-1.5 rounded hover:bg-[#18181b] text-[#737373] hover:text-[#ffff00] border border-[#262626] transition-colors shrink-0"
+            title="Attach Image (Ctrl+V / Drag & Drop)"
           >
             <ImageIcon className="w-3.5 h-3.5" />
           </button>
 
-          <div className="text-[#f43f5e] font-mono text-xs font-bold pl-1">&gt;</div>
+          <div className="text-[#ff00ff] font-mono text-xs font-bold pl-1">&gt;</div>
           <input
             type="text"
             placeholder={
@@ -683,15 +702,15 @@ export const PeekTerminalModal: React.FC = () => {
             value={inputPrompt}
             disabled={isSending}
             onChange={(e) => setInputPrompt(e.target.value)}
-            className="flex-1 bg-[#000000] border border-[#27272a] rounded text-xs px-3 py-1.5 text-[#f4f4f5] placeholder-[#52525b] focus:outline-none focus:border-[#f43f5e] font-mono disabled:opacity-50"
+            className="flex-1 bg-[#000000] border border-[#262626] rounded text-xs px-3 py-1.5 text-[#ffffff] placeholder-[#525252] focus:outline-none focus:border-[#ff00ff] font-mono disabled:opacity-50"
             autoFocus
           />
           <button
             type="submit"
             disabled={(!inputPrompt.trim() && attachedImages.length === 0) || isSending}
-            className="px-3.5 py-1.5 rounded bg-[#18181b] hover:bg-[#27272a] hover:text-[#ffffff] text-xs font-bold text-[#f43f5e] border border-[#27272a] disabled:opacity-30 shadow-xs flex items-center space-x-1 font-mono shrink-0 transition-colors"
+            className="px-3.5 py-1.5 rounded bg-[#18181b] hover:bg-[#262626] hover:text-[#ffffff] text-xs font-bold text-[#ff00ff] border border-[#262626] disabled:opacity-30 shadow-xs flex items-center space-x-1 font-mono shrink-0 transition-colors"
           >
-            <Send className="w-3 h-3 text-[#f43f5e]" />
+            <Send className="w-3 h-3 text-[#ff00ff]" />
             <span>{isSending ? 'Running...' : 'Send ↵'}</span>
           </button>
         </form>
