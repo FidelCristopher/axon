@@ -20,7 +20,17 @@ namespace AxonStudio
                 if (!IsBridgeOnline())
                 {
                     StartWslPiBridge();
-                    WaitForBridge(10000);
+                    bool ready = WaitForBridge(25000);
+                    if (!ready)
+                    {
+                        MessageBox.Show(
+                            "Axon Pi Bridge did not respond within 25 seconds.\nCheck /tmp/axon-pi-bridge.log in WSL.",
+                            "Axon Studio",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning
+                        );
+                        return;
+                    }
                 }
 
                 LaunchAppWindow();
@@ -56,10 +66,12 @@ namespace AxonStudio
 
         static void StartWslPiBridge()
         {
+            // Keep wsl.exe attached in foreground (hidden window) so WSL2 NEVER auto-shuts down
+            // even when WezTerm is completely closed.
             var psi = new ProcessStartInfo
             {
                 FileName = "wsl.exe",
-                Arguments = "-e bash -lc \"nohup /home/fidel/.local/share/pi-node/current/bin/node /mnt/c/Users/Pongo/axon/server/axonPiBridge.cjs >/tmp/axon-pi-bridge.log 2>&1 < /dev/null &\"",
+                Arguments = "-d Ubuntu -u fidel -- /home/fidel/.local/share/pi-node/current/bin/node /mnt/c/Users/Pongo/axon/server/axonPiBridge.cjs",
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden
@@ -67,15 +79,16 @@ namespace AxonStudio
             Process.Start(psi);
         }
 
-        static void WaitForBridge(int maxWaitMs)
+        static bool WaitForBridge(int maxWaitMs)
         {
             int elapsed = 0;
             while (elapsed < maxWaitMs)
             {
-                if (IsBridgeOnline()) return;
+                if (IsBridgeOnline()) return true;
                 Thread.Sleep(300);
                 elapsed += 300;
             }
+            return IsBridgeOnline();
         }
 
         static string FindBrowser()
