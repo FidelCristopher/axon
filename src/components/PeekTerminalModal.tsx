@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAxonStore } from '../store/axonStore';
-import { X, Scissors, Send, GitBranch, Wrench, Image as ImageIcon } from 'lucide-react';
+import { X, Scissors, Send, Image as ImageIcon } from 'lucide-react';
 
 export interface AttachedImage {
   id: string;
@@ -19,6 +19,104 @@ interface ChatMessageItem {
   tools?: Array<{ type?: string; name?: string; args?: any; output?: string; isError?: boolean }>;
   timestamp?: number;
   model?: string;
+}
+
+/**
+ * Pixel-Perfect WezTerm / Pi Terminal Syntax Highlighting:
+ * - Headers (###): Yellow (#facc15)
+ * - Numbered Lists (1., 2.): Magenta (#f43f5e)
+ * - Bullets (- , *): Rose (#e11d48)
+ * - Inline Code (`code`): Purple / Pink (#e879f9)
+ * - Bold (**text**): High-contrast White (#ffffff)
+ * - Dividers (---): Subtle terminal horizontal rule (#27272a)
+ */
+function renderInlineHighlights(str: string) {
+  const parts = str.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
+
+  return parts.map((part, pIdx) => {
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <span key={pIdx} className="text-[#e879f9] bg-[#18181b] px-1 py-0.2 rounded font-mono">
+          {part.slice(1, -1)}
+        </span>
+      );
+    }
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <span key={pIdx} className="text-[#ffffff] font-bold">
+          {part.slice(2, -2)}
+        </span>
+      );
+    }
+    return <span key={pIdx}>{part}</span>;
+  });
+}
+
+function formatWezTermText(text: string) {
+  if (!text) return null;
+
+  const lines = text.split('\n');
+
+  return lines.map((line, lIdx) => {
+    const trimmed = line.trim();
+
+    // Terminal Horizontal Line (--- or ───)
+    if (trimmed.startsWith('---') || trimmed.startsWith('───') || trimmed.startsWith('***')) {
+      return (
+        <div key={lIdx} className="border-t border-[#27272a] my-2 w-full" />
+      );
+    }
+
+    // Markdown Headers: ### Header -> Yellow (#facc15)
+    if (trimmed.startsWith('###')) {
+      return (
+        <div key={lIdx} className="text-[#facc15] font-bold text-xs mt-3 mb-1 font-mono tracking-tight">
+          {line.replace(/^###\s*/, '### ')}
+        </div>
+      );
+    }
+    if (trimmed.startsWith('##')) {
+      return (
+        <div key={lIdx} className="text-[#facc15] font-bold text-xs mt-3 mb-1 font-mono tracking-tight">
+          {line.replace(/^##\s*/, '## ')}
+        </div>
+      );
+    }
+
+    // Numbered List: 1. , 2. -> Magenta Number (#f43f5e)
+    const numberedMatch = line.match(/^(\s*)(\d+\.)\s*(.*)/);
+    if (numberedMatch) {
+      const indent = numberedMatch[1];
+      const num = numberedMatch[2];
+      const rest = numberedMatch[3];
+      return (
+        <div key={lIdx} className="flex items-start space-x-1.5 leading-relaxed font-mono text-xs text-[#e4e4e7]">
+          <span className="text-[#f43f5e] font-bold shrink-0">{indent}{num}</span>
+          <span>{renderInlineHighlights(rest)}</span>
+        </div>
+      );
+    }
+
+    // Bullet Points: - or * -> Rose Bullet (#e11d48)
+    const bulletMatch = line.match(/^(\s*)([-*])\s*(.*)/);
+    if (bulletMatch) {
+      const indent = bulletMatch[1];
+      const rest = bulletMatch[3];
+      return (
+        <div key={lIdx} className="flex items-start space-x-1.5 leading-relaxed font-mono text-xs text-[#e4e4e7]">
+          <span className="text-[#e11d48] shrink-0 font-bold">{indent}•</span>
+          <span>{renderInlineHighlights(rest)}</span>
+        </div>
+      );
+    }
+
+    // Regular terminal lines
+    return (
+      <div key={lIdx} className="leading-relaxed font-mono text-xs text-[#e4e4e7] whitespace-pre-wrap">
+        {renderInlineHighlights(line)}
+      </div>
+    );
+  });
 }
 
 export const PeekTerminalModal: React.FC = () => {
@@ -345,106 +443,95 @@ export const PeekTerminalModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs select-none">
       <div 
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onPaste={handlePaste}
-        className="w-[840px] max-w-[94vw] h-[580px] bg-[#ffffff] border border-[#cbd5e1] rounded-lg shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 relative"
+        className="w-[880px] max-w-[95vw] h-[640px] bg-[#000000] border border-[#27272a] rounded-lg shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 relative text-[#e4e4e7] font-mono"
       >
         {/* Drag and Drop Image Dropzone Overlay */}
         {isDraggingOver && (
-          <div className="absolute inset-0 bg-[#0f172a]/85 backdrop-blur-xs z-50 flex flex-col items-center justify-center border-2 border-dashed border-[#e11d48] text-white space-y-2 pointer-events-none animate-in fade-in duration-150">
+          <div className="absolute inset-0 bg-[#000000]/90 backdrop-blur-xs z-50 flex flex-col items-center justify-center border-2 border-dashed border-[#e11d48] text-white space-y-2 pointer-events-none animate-in fade-in duration-150 font-mono">
             <div className="w-12 h-12 rounded-full bg-[#e11d48]/20 flex items-center justify-center border border-[#e11d48]/50">
               <ImageIcon className="w-6 h-6 text-[#e11d48]" />
             </div>
-            <div className="text-xs font-bold font-mono">Drop Image(s) Here to Attach</div>
-            <div className="text-[10px] text-[#94a3b8] font-mono">PNG, JPG, WebP, GIF supported (Auto-staged)</div>
+            <div className="text-xs font-bold text-[#facc15]">Drop Image(s) Here to Attach</div>
+            <div className="text-[10px] text-[#a1a1aa]">PNG, JPG, WebP, GIF supported (Auto-staged)</div>
           </div>
         )}
 
-        {/* Modal Header */}
-        <div className="px-4 py-3 bg-[#f8fafc] border-b border-[#e2e8f0] flex items-center justify-between">
+        {/* WezTerm Style Window Header */}
+        <div className="px-4 py-2.5 bg-[#09090b] border-b border-[#27272a] flex items-center justify-between text-xs">
           <div className="flex items-center space-x-2.5">
             <div className="w-2.5 h-2.5 rounded-full bg-[#e11d48] animate-pulse" />
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold text-[#0f172a] font-mono">{entity.name}</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#f1f5f9] text-[#e11d48] border border-[#e2e8f0] font-semibold">
-                  [{entity.status}]
-                </span>
-              </div>
-              <div className="flex items-center space-x-2 text-[10px] text-[#64748b] font-mono">
-                <span className="flex items-center space-x-1">
-                  <GitBranch className="w-2.5 h-2.5" />
-                  <span>{resolveCwd(entity)}</span>
-                </span>
-                <span>•</span>
-                <span>{((entity.tokenUsed / entity.tokenMax) * 100).toFixed(0)}% memory</span>
-                <span>•</span>
-                <span>{chatMessages.length} turns</span>
-              </div>
+            <div className="flex items-center space-x-2">
+              <span className="font-bold text-[#ffffff] font-mono">{entity.name}</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#18181b] text-[#f43f5e] border border-[#27272a] font-semibold">
+                [{entity.status}]
+              </span>
+              <span className="text-[10px] text-[#71717a]">
+                ~ {resolveCwd(entity)}
+              </span>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
+            <span className="text-[10px] text-[#71717a]">
+              {chatMessages.length} turns • {((entity.tokenUsed / entity.tokenMax) * 100).toFixed(0)}% mem
+            </span>
             <button
               onClick={handleManualCompact}
-              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] text-xs font-semibold text-[#0f172a] shadow-xs transition-all font-mono"
+              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#18181b] hover:bg-[#27272a] border border-[#3f3f46] text-xs font-semibold text-[#facc15] transition-all font-mono shadow-xs"
               title="Compact session memory"
             >
-              <Scissors className="w-3 h-3 text-[#f59e0b]" />
+              <Scissors className="w-3 h-3 text-[#facc15]" />
               <span>Compact</span>
             </button>
             <button
               onClick={() => setIsTerminalModalOpen(false)}
-              className="p-1 rounded hover:bg-[#f1f5f9] text-[#64748b] hover:text-[#0f172a] transition-colors"
+              className="p-1 rounded hover:bg-[#18181b] text-[#71717a] hover:text-[#ffffff] transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Single Unified Stream: Session Info + History Turns + Live Telemetry */}
-        <div className="flex-1 bg-[#f8fafc] p-4 overflow-y-auto space-y-3 font-sans">
-          {/* Top Session Telemetry Banner */}
-          <div className="flex items-center justify-between p-2.5 rounded-lg bg-[#ffffff] border border-[#e2e8f0] text-[11px] font-mono text-[#64748b] shadow-xs">
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 rounded-full bg-[#10b981]" />
-              <span className="font-bold text-[#0f172a]">{entity.name}</span>
-              <span>•</span>
-              <span className="text-[#e11d48] truncate max-w-[260px]">{resolveCwd(entity)}</span>
+        {/* Terminal Content Body (Authentic WezTerm CLI Canvas) */}
+        <div className="flex-1 bg-[#000000] p-4 overflow-y-auto space-y-3 font-mono text-xs">
+          {/* Top WezTerm Header Line */}
+          <div className="border-b border-[#27272a] pb-2 text-[11px] text-[#71717a] flex items-center justify-between">
+            <div>
+              <span className="text-[#38bdf8]">~ • {entity.name}</span>
+              <span className="text-[#52525b] ml-2 font-mono">({entity.worktree})</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <span>Zero-Idle: ACTIVE</span>
-              <span>•</span>
-              <span className="font-semibold text-[#0f172a]">{chatMessages.length} turns</span>
+            <div className="text-[#a1a1aa]">
+              (antigravity) gemini-4-neon • zero-idle
             </div>
           </div>
 
           {/* Loading Indicator */}
           {isLoadingHistory ? (
-            <div className="flex flex-col items-center justify-center py-12 text-[#64748b] font-mono text-xs space-y-2">
+            <div className="flex flex-col items-center justify-center py-16 text-[#71717a] font-mono text-xs space-y-2">
               <div className="w-5 h-5 border-2 border-[#e11d48] border-t-transparent rounded-full animate-spin" />
-              <span>Reading session history from .jsonl...</span>
+              <span>[reading session logs from ~/.pi/agent/sessions/...]</span>
             </div>
           ) : chatMessages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-[#94a3b8] font-mono text-xs space-y-1 text-center p-6">
-              <div className="text-sm font-bold text-[#64748b]">Session Ready (Zero-Idle)</div>
-              <p className="text-[11px] text-[#94a3b8]">
-                Type a prompt below or paste an image to begin execution in this node.
+            <div className="flex flex-col items-center justify-center py-16 text-[#71717a] font-mono text-xs space-y-1 text-center">
+              <div className="text-sm font-bold text-[#facc15]">&gt; Terminal Session Initialized</div>
+              <p className="text-[11px] text-[#71717a]">
+                Type a prompt below or paste an image (Ctrl+V) to begin execution.
               </p>
             </div>
           ) : (
             chatMessages.map((msg, index) => {
               if (msg.role === 'system_notice') {
                 return (
-                  <div key={msg.id || index} className="flex items-center justify-center my-3">
-                    <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#f1f5f9] border border-[#cbd5e1] text-[10px] font-mono text-[#64748b]">
-                      <Scissors className="w-3 h-3 text-[#f59e0b]" />
-                      <span>{msg.text}</span>
-                    </div>
+                  <div key={msg.id || index} className="my-3 py-1 border-y border-[#27272a] text-center">
+                    <span className="text-[#e879f9] text-[11px] font-mono font-semibold">
+                      [✂️ {msg.text}]
+                    </span>
                   </div>
                 );
               }
@@ -452,61 +539,67 @@ export const PeekTerminalModal: React.FC = () => {
               const isUser = msg.role === 'user';
 
               return (
-                <div
-                  key={msg.id || index}
-                  className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
-                >
-                  <div className="flex items-center space-x-1.5 mb-1 px-1 text-[10px] text-[#64748b] font-mono">
-                    <span className="font-bold text-[#0f172a]">{isUser ? 'User Prompt' : 'Pi Assistant'}</span>
-                    {msg.timestamp && (
-                      <span>• {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    )}
-                  </div>
-
-                  <div
-                    className={`max-w-[88%] rounded-lg p-3 text-xs leading-relaxed shadow-xs ${
-                      isUser
-                        ? 'bg-[#0f172a] text-[#f8fafc] font-mono rounded-tr-none'
-                        : 'bg-[#ffffff] text-[#0f172a] border border-[#e2e8f0] rounded-tl-none font-sans'
-                    }`}
-                  >
-                    {/* User Attached Images if Any */}
-                    {msg.attachedImages && msg.attachedImages.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        {msg.attachedImages.map((src, imgIdx) => (
-                          <div key={imgIdx} className="w-20 h-20 rounded-md overflow-hidden border border-white/20 bg-black/20">
-                            <img src={src} alt="Attached" className="w-full h-full object-cover" />
-                          </div>
-                        ))}
+                <div key={msg.id || index} className="space-y-1">
+                  {/* User Turn Prompt Line */}
+                  {isUser ? (
+                    <div className="pt-2 border-t border-[#27272a] space-y-1">
+                      <div className="flex items-center space-x-2 text-[#38bdf8] font-bold text-xs">
+                        <span>&gt; User:</span>
+                        {msg.timestamp && (
+                          <span className="text-[10px] text-[#52525b] font-normal font-mono">
+                            [{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}]
+                          </span>
+                        )}
                       </div>
-                    )}
 
-                    {/* Text Body */}
-                    {msg.text && (
-                      <div className="whitespace-pre-wrap select-text">{msg.text}</div>
-                    )}
-
-                    {/* Tool Calls Breakdown */}
-                    {msg.tools && msg.tools.length > 0 && (
-                      <div className="mt-2 pt-2 border-t border-[#e2e8f0]/80 space-y-1.5">
-                        <div className="text-[9px] font-mono font-bold text-[#64748b] uppercase tracking-wider flex items-center space-x-1">
-                          <Wrench className="w-2.5 h-2.5 text-[#e11d48]" />
-                          <span>Tool Invocations ({msg.tools.length})</span>
-                        </div>
-                        <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto">
-                          {msg.tools.map((t: any, tIdx: number) => (
-                            <span
-                              key={tIdx}
-                              className="text-[9px] font-mono px-2 py-0.5 rounded bg-[#f1f5f9] text-[#334155] border border-[#e2e8f0] max-w-full truncate"
-                              title={t.name ? `${t.name}: ${JSON.stringify(t.args || {})}` : t.output}
-                            >
-                              {t.name ? `[${t.name}]` : `[result: ${String(t.output || '').slice(0, 35)}...]`}
-                            </span>
+                      {/* Attached images if sent by user */}
+                      {msg.attachedImages && msg.attachedImages.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 my-1.5">
+                          {msg.attachedImages.map((src, imgIdx) => (
+                            <div key={imgIdx} className="w-20 h-20 rounded border border-[#27272a] overflow-hidden bg-[#09090b]">
+                              <img src={src} alt="Attached" className="w-full h-full object-cover" />
+                            </div>
                           ))}
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+
+                      {msg.text && (
+                        <div className="text-[#f4f4f5] font-mono pl-4 leading-relaxed whitespace-pre-wrap select-text">
+                          {msg.text}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Assistant Turn (WezTerm High-Contrast Syntax Highlighted) */
+                    <div className="space-y-1.5 pl-1">
+                      {/* Tool Invocations in WezTerm CLI Style */}
+                      {msg.tools && msg.tools.length > 0 && (
+                        <div className="my-1.5 space-y-0.5">
+                          {msg.tools.map((t: any, tIdx: number) => (
+                            <div
+                              key={tIdx}
+                              className="text-[11px] font-mono text-[#a1a1aa] flex items-center space-x-1.5"
+                            >
+                              <span className="text-[#ec4899] font-bold">$</span>
+                              <span className="text-[#38bdf8] font-semibold">
+                                {t.name || 'tool'}
+                              </span>
+                              <span className="text-[#71717a] truncate max-w-[500px]">
+                                {t.args ? JSON.stringify(t.args).slice(0, 90) : t.output ? String(t.output).slice(0, 70) : ''}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Assistant Text Body formatted with WezTerm Colors */}
+                      {msg.text && (
+                        <div className="space-y-0.5 select-text">
+                          {formatWezTermText(msg.text)}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -516,21 +609,21 @@ export const PeekTerminalModal: React.FC = () => {
 
         {/* Attached Images Preview Strip */}
         {attachedImages.length > 0 && (
-          <div className="px-3 py-2 bg-[#f8fafc] border-t border-[#e2e8f0] flex items-center space-x-2 overflow-x-auto">
-            <span className="text-[10px] font-mono text-[#64748b] shrink-0 font-semibold">
+          <div className="px-3 py-2 bg-[#09090b] border-t border-[#27272a] flex items-center space-x-2 overflow-x-auto">
+            <span className="text-[10px] font-mono text-[#a1a1aa] shrink-0 font-semibold">
               Attached ({attachedImages.length}/10):
             </span>
             <div className="flex items-center space-x-2">
               {attachedImages.map((img) => (
                 <div
                   key={img.id}
-                  className="relative group shrink-0 w-11 h-11 rounded-md border border-[#cbd5e1] overflow-hidden bg-white shadow-xs"
+                  className="relative group shrink-0 w-11 h-11 rounded border border-[#3f3f46] overflow-hidden bg-[#18181b] shadow-xs"
                 >
                   <img src={img.previewUrl} alt={img.name} className="w-full h-full object-cover" />
                   <button
                     type="button"
                     onClick={() => setAttachedImages((prev) => prev.filter((i) => i.id !== img.id))}
-                    className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[#0f172a]/80 hover:bg-[#ef4444] text-white flex items-center justify-center transition-colors shadow-xs"
+                    className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[#000000]/90 hover:bg-[#ef4444] text-white flex items-center justify-center transition-colors shadow-xs"
                     title="Remove image"
                   >
                     <X className="w-2.5 h-2.5" />
@@ -554,38 +647,52 @@ export const PeekTerminalModal: React.FC = () => {
           }}
         />
 
-        {/* Input Bar with Insert Image Button */}
-        <form onSubmit={handleSendPrompt} className="p-2.5 bg-[#ffffff] border-t border-[#e2e8f0] flex items-center space-x-2">
+        {/* WezTerm Style Bottom Telemetry Status Line */}
+        <div className="px-3 py-1 bg-[#09090b] border-t border-[#27272a] flex items-center justify-between text-[10px] text-[#71717a] font-mono">
+          <div className="flex items-center space-x-2">
+            <span className="text-[#38bdf8]">~ • {entity.name}</span>
+            <span>|</span>
+            <span>↑14M ↓808k</span>
+            <span>|</span>
+            <span className="text-[#10b981]">mem: {((entity.tokenUsed / entity.tokenMax) * 100).toFixed(0)}%</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span>(antigravity) gemini-4-neon • medium</span>
+          </div>
+        </div>
+
+        {/* WezTerm CLI Style Input Bar */}
+        <form onSubmit={handleSendPrompt} className="p-2 bg-[#09090b] border-t border-[#27272a] flex items-center space-x-2 font-mono">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="p-1.5 rounded-md hover:bg-[#f1f5f9] text-[#64748b] hover:text-[#e11d48] border border-[#cbd5e1] transition-colors shrink-0"
-            title="Insert / Attach Image (or paste from clipboard / drag & drop)"
+            className="p-1.5 rounded hover:bg-[#18181b] text-[#71717a] hover:text-[#facc15] border border-[#27272a] transition-colors shrink-0"
+            title="Insert / Attach Image (or paste with Ctrl+V / drag & drop)"
           >
             <ImageIcon className="w-3.5 h-3.5" />
           </button>
 
-          <div className="text-[#e11d48] font-mono text-xs font-bold">&gt;</div>
+          <div className="text-[#f43f5e] font-mono text-xs font-bold pl-1">&gt;</div>
           <input
             type="text"
             placeholder={
               isSending
                 ? `Executing prompt in ${resolveCwd(entity)}...`
-                : `Send prompt or paste image to ${entity.name}... (Ctrl+V / Drag & Drop)`
+                : `Type prompt or paste image (Ctrl+V)...`
             }
             value={inputPrompt}
             disabled={isSending}
             onChange={(e) => setInputPrompt(e.target.value)}
-            className="flex-1 bg-[#f8fafc] border border-[#cbd5e1] rounded-md text-xs px-3 py-1.5 text-[#0f172a] placeholder-[#94a3b8] focus:outline-none focus:border-[#e11d48] focus:bg-[#ffffff] font-mono disabled:opacity-50"
+            className="flex-1 bg-[#000000] border border-[#27272a] rounded text-xs px-3 py-1.5 text-[#f4f4f5] placeholder-[#52525b] focus:outline-none focus:border-[#f43f5e] font-mono disabled:opacity-50"
             autoFocus
           />
           <button
             type="submit"
             disabled={(!inputPrompt.trim() && attachedImages.length === 0) || isSending}
-            className="px-3.5 py-1.5 rounded-md bg-[#e11d48] hover:bg-[#be123c] text-xs font-bold text-[#ffffff] disabled:opacity-40 shadow-xs flex items-center space-x-1 font-mono shrink-0"
+            className="px-3.5 py-1.5 rounded bg-[#18181b] hover:bg-[#27272a] hover:text-[#ffffff] text-xs font-bold text-[#f43f5e] border border-[#27272a] disabled:opacity-30 shadow-xs flex items-center space-x-1 font-mono shrink-0 transition-colors"
           >
-            <Send className="w-3 h-3" />
-            <span>{isSending ? 'Running...' : 'Send'}</span>
+            <Send className="w-3 h-3 text-[#f43f5e]" />
+            <span>{isSending ? 'Running...' : 'Send ↵'}</span>
           </button>
         </form>
       </div>
