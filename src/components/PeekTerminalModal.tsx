@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAxonStore } from '../store/axonStore';
-import { X, Scissors, Send, GitBranch, MessageSquare, Terminal, Wrench, Image as ImageIcon } from 'lucide-react';
+import { X, Scissors, Send, GitBranch, Wrench, Image as ImageIcon } from 'lucide-react';
 
 export interface AttachedImage {
   id: string;
@@ -9,6 +9,16 @@ export interface AttachedImage {
   previewUrl: string;
   base64?: string;
   file?: File;
+}
+
+interface ChatMessageItem {
+  id: string;
+  role: 'user' | 'assistant' | 'system' | 'system_notice';
+  text?: string;
+  attachedImages?: string[];
+  tools?: Array<{ type?: string; name?: string; args?: any; output?: string; isError?: boolean }>;
+  timestamp?: number;
+  model?: string;
 }
 
 export const PeekTerminalModal: React.FC = () => {
@@ -22,14 +32,11 @@ export const PeekTerminalModal: React.FC = () => {
   } = useAxonStore();
 
   const [inputPrompt, setInputPrompt] = useState('');
-  const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
-  const logsEndRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Tab View State: 'chat' for parsed historical chat turns, 'console' for live terminal/telemetry
-  const [modalView, setModalView] = useState<'chat' | 'console'>('chat');
-  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  // Single Unified Chat & Telemetry Stream
+  const [chatMessages, setChatMessages] = useState<ChatMessageItem[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   // Multimodal Image Attachment States (Drag & Drop, Paste, File Input)
@@ -48,18 +55,6 @@ export const PeekTerminalModal: React.FC = () => {
     if (ent.worktree === 'axon/main') return '/mnt/c/Users/Pongo/axon';
     return '/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning';
   };
-
-  useEffect(() => {
-    if (!entity) return;
-    setTerminalLogs([
-      `[Native Pi Agent Initialized: ${entity.name}]`,
-      `Local Workspace: ${resolveCwd(entity)}`,
-      `Worktree: ${entity.worktree} | UUID: ${entity.uuid}`,
-      `Zero-Idle Architecture: ACTIVE (Tokens strictly consumed only on task run)`,
-      `Status: ${entity.status} | Memory Footprint: ${((entity.tokenUsed / entity.tokenMax) * 100).toFixed(1)}%`,
-      `--- Connected to Native Pi Engine (100% Local File Access) ---`,
-    ]);
-  }, [selectedEntityId, isTerminalModalOpen]);
 
   // Fetch real session history (.jsonl) whenever modal opens or active entity changes
   useEffect(() => {
@@ -88,7 +83,7 @@ export const PeekTerminalModal: React.FC = () => {
       });
   }, [entity?.id, entity?.uuid, isTerminalModalOpen]);
 
-  // Connect to SSE stream from native Pi Bridge for real-time telemetry
+  // Connect to SSE stream from native Pi Bridge for real-time telemetry streaming
   useEffect(() => {
     const sse = new EventSource('http://localhost:1425/api/stream');
 
@@ -99,32 +94,66 @@ export const PeekTerminalModal: React.FC = () => {
 
         if (data.type === 'agent_start' && data.nodeId === selectedEntityId) {
           updateEntityStatus(selectedEntityId, 'WORKING', 'Agent executing prompt...');
+          setChatMessages((prev) => [
+            ...prev,
+            {
+              id: `live-assistant-${Date.now()}`,
+              role: 'assistant',
+              text: '',
+              tools: [],
+              timestamp: Date.now(),
+            },
+          ]);
         } else if (data.type === 'text_delta' && data.nodeId === selectedEntityId) {
-          setTerminalLogs((prev) => {
-            const last = prev[prev.length - 1];
-            if (last && last.startsWith('[assistant]:')) {
-              const updated = [...prev];
-              updated[updated.length - 1] = last + data.delta;
-              return updated;
+          setChatMessages((prev) => {
+            const list = [...prev];
+            const last = list[list.length - 1];
+            if (last && last.role === 'assistant') {
+              list[list.length - 1] = {
+                ...last,
+                text: (last.text || '') + data.delta,
+              };
+              return list;
             }
-            return [...prev, `[assistant]: ${data.delta}`];
+            return [
+              ...prev,
+              {
+                id: `live-${Date.now()}`,
+                role: 'assistant',
+                text: data.delta,
+                timestamp: Date.now(),
+              },
+            ];
           });
         } else if (data.type === 'tool_start' && data.nodeId === selectedEntityId) {
-          setTerminalLogs((prev) => [
-            ...prev,
-            `[tool_call]: ${data.tool} (${JSON.stringify(data.args || {}).slice(0, 64)}...)`,
-          ]);
+          setChatMessages((prev) => {
+            const list = [...prev];
+            const last = list[list.length - 1];
+            if (last && last.role === 'assistant') {
+              const tools = last.tools ? [...last.tools] : [];
+              tools.push({ type: 'call', name: data.tool, args: data.args });
+              list[list.length - 1] = { ...last, tools };
+              return list;
+            }
+            return prev;
+          });
         } else if (data.type === 'tool_end' && data.nodeId === selectedEntityId) {
-          setTerminalLogs((prev) => [
-            ...prev,
-            `[tool_result]: ${data.tool} execution completed cleanly.`,
-          ]);
+          setChatMessages((prev) => {
+            const list = [...prev];
+            const last = list[list.length - 1];
+            if (last && last.role === 'assistant' && last.tools) {
+              const tools = [...last.tools];
+              const lastTool = tools[tools.length - 1];
+              if (lastTool) {
+                tools[tools.length - 1] = { ...lastTool, isError: data.isError };
+                list[list.length - 1] = { ...last, tools };
+              }
+              return list;
+            }
+            return prev;
+          });
         } else if (data.type === 'agent_end' && data.nodeId === selectedEntityId) {
           updateEntityStatus(selectedEntityId, 'IDLE', 'Task complete. State settled to IDLE.');
-          setTerminalLogs((prev) => [
-            ...prev,
-            `[agent_end]: Turn completed. State settled to IDLE.`,
-          ]);
           setIsSending(false);
         }
       } catch {}
@@ -135,9 +164,10 @@ export const PeekTerminalModal: React.FC = () => {
     };
   }, [selectedEntityId, updateEntityStatus]);
 
+  // Auto-scroll to bottom of chat when new messages or turns arrive
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [terminalLogs]);
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, isSending]);
 
   // Multimodal Image Helper Functions
   const processImageFiles = (files: FileList | File[]) => {
@@ -228,15 +258,16 @@ export const PeekTerminalModal: React.FC = () => {
 
     const targetCwd = resolveCwd(entity);
 
-    const attachLabel = imagesToAttach.length > 0 ? ` [Attached: ${imagesToAttach.length} image(s)]` : '';
+    // Append user message directly to the unified conversation stream
+    const userMsg: ChatMessageItem = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      text: promptText,
+      attachedImages: imagesToAttach.map((i) => i.previewUrl),
+      timestamp: Date.now(),
+    };
 
-    // Append user input
-    setTerminalLogs((prev) => [
-      ...prev,
-      `> User: ${promptText || '(Image attachment)'}${attachLabel}`,
-      `[sandbox mode active: 0 tokens consumed] Workspace: ${targetCwd}`,
-    ]);
-
+    setChatMessages((prev) => [...prev, userMsg]);
     updateEntityStatus(entity.id, 'WORKING', `Executing: "${promptText.slice(0, 32)}..."`);
 
     if (IS_LIVE_BRIDGE_ACTIVE) {
@@ -248,6 +279,7 @@ export const PeekTerminalModal: React.FC = () => {
             nodeId: entity.id,
             cwd: targetCwd,
             prompt: promptText,
+            images: imagesToAttach.map((i) => i.base64),
           }),
         });
 
@@ -255,35 +287,52 @@ export const PeekTerminalModal: React.FC = () => {
           throw new Error(`HTTP ${res.status}`);
         }
       } catch (err: any) {
-        setTerminalLogs((prev) => [
+        setChatMessages((prev) => [
           ...prev,
-          `[error]: Failed to connect to native Pi Bridge: ${err.message}`,
+          {
+            id: `err-${Date.now()}`,
+            role: 'system_notice',
+            text: `Failed to connect to native Pi Bridge: ${err.message}`,
+            timestamp: Date.now(),
+          },
         ]);
         setIsSending(false);
         updateEntityStatus(entity.id, 'IDLE', 'Error executing prompt');
       }
     } else {
-      // Safe UI development simulation: zero tokens, instant UI feedback
+      // Safe UI development simulation: zero tokens, instant clean feedback
       setTimeout(() => {
-        setTerminalLogs((prev) => [
+        setChatMessages((prev) => [
           ...prev,
-          `[tool_call]: read (${targetCwd}/build.gradle.kts)`,
-          `[tool_result]: Workspace verified cleanly.`,
-          `[assistant]: Perintah "${promptText}" diterima di UI sandbox. Menunggu pembukaan kunci integrasi.`,
-          `[agent_end]: Turn selesai. Status kembali ke IDLE.`,
+          {
+            id: `asst-${Date.now()}`,
+            role: 'assistant',
+            text: `Perintah "${promptText || '(Image)'}" diterima di UI sandbox. Tugas selesai diproses di workspace ${targetCwd}.`,
+            tools: [
+              { name: 'read', args: { path: `${targetCwd}/src` } },
+              { name: 'verify', args: { status: 'passed' } },
+            ],
+            timestamp: Date.now(),
+          },
         ]);
         updateEntityStatus(entity.id, 'IDLE', 'Task finished cleanly (Sandbox)');
         setIsSending(false);
-      }, 1500);
+      }, 1200);
     }
   };
 
   const handleManualCompact = async () => {
     compactEntityMemory(entity.id);
-    setTerminalLogs((prev) => [
+
+    // Add clean compaction divider in chat history
+    setChatMessages((prev) => [
       ...prev,
-      `[manual_action] /compact command executed via Pi Bridge...`,
-      `Pruning old turns and session cache...`,
+      {
+        id: `compact-${Date.now()}`,
+        role: 'system_notice',
+        text: 'Session memory compacted cleanly. Old turns pruned to preserve token efficiency.',
+        timestamp: Date.now(),
+      },
     ]);
 
     try {
@@ -292,10 +341,6 @@ export const PeekTerminalModal: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nodeId: entity.id }),
       });
-      setTerminalLogs((prev) => [
-        ...prev,
-        `[compaction_complete] Memory compacted cleanly.`,
-      ]);
     } catch {}
   };
 
@@ -306,7 +351,7 @@ export const PeekTerminalModal: React.FC = () => {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onPaste={handlePaste}
-        className="w-[820px] max-w-[94vw] h-[560px] bg-[#ffffff] border border-[#cbd5e1] rounded-lg shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 relative"
+        className="w-[840px] max-w-[94vw] h-[580px] bg-[#ffffff] border border-[#cbd5e1] rounded-lg shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 relative"
       >
         {/* Drag and Drop Image Dropzone Overlay */}
         {isDraggingOver && (
@@ -319,13 +364,13 @@ export const PeekTerminalModal: React.FC = () => {
           </div>
         )}
 
-        {/* Terminal Header */}
+        {/* Modal Header */}
         <div className="px-4 py-3 bg-[#f8fafc] border-b border-[#e2e8f0] flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
             <div className="w-2.5 h-2.5 rounded-full bg-[#e11d48] animate-pulse" />
             <div>
               <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold text-[#0f172a]">{entity.name}</span>
+                <span className="text-xs font-bold text-[#0f172a] font-mono">{entity.name}</span>
                 <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#f1f5f9] text-[#e11d48] border border-[#e2e8f0] font-semibold">
                   [{entity.status}]
                 </span>
@@ -337,6 +382,8 @@ export const PeekTerminalModal: React.FC = () => {
                 </span>
                 <span>•</span>
                 <span>{((entity.tokenUsed / entity.tokenMax) * 100).toFixed(0)}% memory</span>
+                <span>•</span>
+                <span>{chatMessages.length} turns</span>
               </div>
             </div>
           </div>
@@ -344,7 +391,7 @@ export const PeekTerminalModal: React.FC = () => {
           <div className="flex items-center space-x-2">
             <button
               onClick={handleManualCompact}
-              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] text-xs font-semibold text-[#0f172a] shadow-xs transition-all"
+              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] text-xs font-semibold text-[#0f172a] shadow-xs transition-all font-mono"
               title="Compact session memory"
             >
               <Scissors className="w-3 h-3 text-[#f59e0b]" />
@@ -359,135 +406,113 @@ export const PeekTerminalModal: React.FC = () => {
           </div>
         </div>
 
-        {/* View Tabs Switcher: Real Chat History vs Live Console */}
-        <div className="px-4 py-2 bg-[#ffffff] border-b border-[#e2e8f0] flex items-center justify-between">
-          <div className="flex items-center space-x-1.5">
-            <button
-              onClick={() => setModalView('chat')}
-              className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-semibold font-mono transition-all ${
-                modalView === 'chat'
-                  ? 'bg-[#e11d48] text-white shadow-xs'
-                  : 'bg-[#f1f5f9] text-[#64748b] hover:text-[#0f172a] hover:bg-[#e2e8f0]'
-              }`}
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>Chat History {chatMessages.length > 0 && `(${chatMessages.length})`}</span>
-            </button>
-
-            <button
-              onClick={() => setModalView('console')}
-              className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-semibold font-mono transition-all ${
-                modalView === 'console'
-                  ? 'bg-[#e11d48] text-white shadow-xs'
-                  : 'bg-[#f1f5f9] text-[#64748b] hover:text-[#0f172a] hover:bg-[#e2e8f0]'
-              }`}
-            >
-              <Terminal className="w-3.5 h-3.5" />
-              <span>Live Console & Telemetry</span>
-            </button>
+        {/* Single Unified Stream: Session Info + History Turns + Live Telemetry */}
+        <div className="flex-1 bg-[#f8fafc] p-4 overflow-y-auto space-y-3 font-sans">
+          {/* Top Session Telemetry Banner */}
+          <div className="flex items-center justify-between p-2.5 rounded-lg bg-[#ffffff] border border-[#e2e8f0] text-[11px] font-mono text-[#64748b] shadow-xs">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 rounded-full bg-[#10b981]" />
+              <span className="font-bold text-[#0f172a]">{entity.name}</span>
+              <span>•</span>
+              <span className="text-[#e11d48] truncate max-w-[260px]">{resolveCwd(entity)}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span>Zero-Idle: ACTIVE</span>
+              <span>•</span>
+              <span className="font-semibold text-[#0f172a]">{chatMessages.length} turns</span>
+            </div>
           </div>
 
-          <span className="text-[10px] font-mono text-[#94a3b8]">
-            {modalView === 'chat' ? (isLoadingHistory ? 'Loading .jsonl...' : `${chatMessages.length} turns loaded`) : 'Zero-Idle PTY'}
-          </span>
-        </div>
-
-        {/* Content Body: Chat History OR Console Logs */}
-        {modalView === 'chat' ? (
-          <div className="flex-1 bg-[#f8fafc] p-4 overflow-y-auto space-y-3 font-sans">
-            {isLoadingHistory ? (
-              <div className="flex flex-col items-center justify-center h-full text-[#64748b] font-mono text-xs space-y-2">
-                <div className="w-5 h-5 border-2 border-[#e11d48] border-t-transparent rounded-full animate-spin" />
-                <span>Reading session history (.jsonl)...</span>
-              </div>
-            ) : chatMessages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-[#94a3b8] font-mono text-xs space-y-1 text-center p-6">
-                <div className="text-sm font-bold text-[#64748b]">No Historical Chat Turns Found</div>
-                <p className="text-[11px] text-[#94a3b8]">
-                  This session does not have logged user/assistant messages yet, or switch to Live Console to send a command.
-                </p>
-              </div>
-            ) : (
-              chatMessages.map((msg, index) => {
-                const isUser = msg.role === 'user';
-
+          {/* Loading Indicator */}
+          {isLoadingHistory ? (
+            <div className="flex flex-col items-center justify-center py-12 text-[#64748b] font-mono text-xs space-y-2">
+              <div className="w-5 h-5 border-2 border-[#e11d48] border-t-transparent rounded-full animate-spin" />
+              <span>Reading session history from .jsonl...</span>
+            </div>
+          ) : chatMessages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-[#94a3b8] font-mono text-xs space-y-1 text-center p-6">
+              <div className="text-sm font-bold text-[#64748b]">Session Ready (Zero-Idle)</div>
+              <p className="text-[11px] text-[#94a3b8]">
+                Type a prompt below or paste an image to begin execution in this node.
+              </p>
+            </div>
+          ) : (
+            chatMessages.map((msg, index) => {
+              if (msg.role === 'system_notice') {
                 return (
-                  <div
-                    key={msg.id || index}
-                    className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
-                  >
-                    <div className="flex items-center space-x-1.5 mb-1 px-1 text-[10px] text-[#64748b] font-mono">
-                      <span className="font-bold text-[#0f172a]">{isUser ? 'User Prompt' : 'Pi Assistant'}</span>
-                      {msg.timestamp && (
-                        <span>• {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      )}
-                    </div>
-
-                    <div
-                      className={`max-w-[88%] rounded-lg p-3 text-xs leading-relaxed shadow-xs ${
-                        isUser
-                          ? 'bg-[#0f172a] text-[#f8fafc] font-mono rounded-tr-none'
-                          : 'bg-[#ffffff] text-[#0f172a] border border-[#e2e8f0] rounded-tl-none font-sans'
-                      }`}
-                    >
-                      {msg.text && (
-                        <div className="whitespace-pre-wrap select-text">{msg.text}</div>
-                      )}
-
-                      {/* Tool Calls Breakdown */}
-                      {msg.tools && msg.tools.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-[#e2e8f0]/80 space-y-1.5">
-                          <div className="text-[9px] font-mono font-bold text-[#64748b] uppercase tracking-wider flex items-center space-x-1">
-                            <Wrench className="w-2.5 h-2.5 text-[#e11d48]" />
-                            <span>Tool Invocations ({msg.tools.length})</span>
-                          </div>
-                          <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto">
-                            {msg.tools.map((t: any, tIdx: number) => (
-                              <span
-                                key={tIdx}
-                                className="text-[9px] font-mono px-2 py-0.5 rounded bg-[#f1f5f9] text-[#334155] border border-[#e2e8f0] max-w-full truncate"
-                                title={t.name ? `${t.name}: ${JSON.stringify(t.args || {})}` : t.output}
-                              >
-                                {t.name ? `[${t.name}]` : `[result: ${String(t.output || '').slice(0, 35)}...]`}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                  <div key={msg.id || index} className="flex items-center justify-center my-3">
+                    <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#f1f5f9] border border-[#cbd5e1] text-[10px] font-mono text-[#64748b]">
+                      <Scissors className="w-3 h-3 text-[#f59e0b]" />
+                      <span>{msg.text}</span>
                     </div>
                   </div>
                 );
-              })
-            )}
-            <div ref={chatEndRef} />
-          </div>
-        ) : (
-          <div className="flex-1 bg-[#0f172a] p-4 font-mono text-xs overflow-y-auto space-y-1 text-[#f8fafc]">
-            {terminalLogs.map((log, index) => {
-              const isUser = log.startsWith('> User');
-              const isTool = log.startsWith('[tool');
-              const isAgent = log.startsWith('[assistant]') || log.startsWith('[agent');
+              }
+
+              const isUser = msg.role === 'user';
 
               return (
                 <div
-                  key={index}
-                  className={`leading-relaxed ${
-                    isUser
-                      ? 'text-[#38bdf8] font-bold'
-                      : isTool
-                      ? 'text-[#fbbf24]'
-                      : isAgent
-                      ? 'text-[#34d399]'
-                      : 'text-[#94a3b8]'
-                  }`}
+                  key={msg.id || index}
+                  className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
                 >
-                  {log}
+                  <div className="flex items-center space-x-1.5 mb-1 px-1 text-[10px] text-[#64748b] font-mono">
+                    <span className="font-bold text-[#0f172a]">{isUser ? 'User Prompt' : 'Pi Assistant'}</span>
+                    {msg.timestamp && (
+                      <span>• {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    )}
+                  </div>
+
+                  <div
+                    className={`max-w-[88%] rounded-lg p-3 text-xs leading-relaxed shadow-xs ${
+                      isUser
+                        ? 'bg-[#0f172a] text-[#f8fafc] font-mono rounded-tr-none'
+                        : 'bg-[#ffffff] text-[#0f172a] border border-[#e2e8f0] rounded-tl-none font-sans'
+                    }`}
+                  >
+                    {/* User Attached Images if Any */}
+                    {msg.attachedImages && msg.attachedImages.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {msg.attachedImages.map((src, imgIdx) => (
+                          <div key={imgIdx} className="w-20 h-20 rounded-md overflow-hidden border border-white/20 bg-black/20">
+                            <img src={src} alt="Attached" className="w-full h-full object-cover" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Text Body */}
+                    {msg.text && (
+                      <div className="whitespace-pre-wrap select-text">{msg.text}</div>
+                    )}
+
+                    {/* Tool Calls Breakdown */}
+                    {msg.tools && msg.tools.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-[#e2e8f0]/80 space-y-1.5">
+                        <div className="text-[9px] font-mono font-bold text-[#64748b] uppercase tracking-wider flex items-center space-x-1">
+                          <Wrench className="w-2.5 h-2.5 text-[#e11d48]" />
+                          <span>Tool Invocations ({msg.tools.length})</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto">
+                          {msg.tools.map((t: any, tIdx: number) => (
+                            <span
+                              key={tIdx}
+                              className="text-[9px] font-mono px-2 py-0.5 rounded bg-[#f1f5f9] text-[#334155] border border-[#e2e8f0] max-w-full truncate"
+                              title={t.name ? `${t.name}: ${JSON.stringify(t.args || {})}` : t.output}
+                            >
+                              {t.name ? `[${t.name}]` : `[result: ${String(t.output || '').slice(0, 35)}...]`}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
-            })}
-            <div ref={logsEndRef} />
-          </div>
-        )}
+            })
+          )}
+          <div ref={chatEndRef} />
+        </div>
 
         {/* Attached Images Preview Strip */}
         {attachedImages.length > 0 && (
