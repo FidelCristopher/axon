@@ -454,16 +454,37 @@ export const PeekTerminalModal: React.FC = () => {
     loadHistory();
   }, [entity?.id, entity?.uuid, isTerminalModalOpen]);
 
-  // Connect to SSE stream from native Pi Bridge for real-time telemetry streaming
+  // Connect to SSE stream from native Pi Bridge for real-time telemetry streaming (Axon UI + Telegram Jarvis 2-Way Sync)
   useEffect(() => {
     const sse = new EventSource('http://127.0.0.1:1425/api/stream');
+    const currentCwd = entity ? resolveCwd(entity) : '';
+    const currentUuid = entity?.uuid || '';
+
+    const isTargetMatch = (data: any) => {
+      if (!selectedEntityId) return false;
+      if (data.nodeId && data.nodeId === selectedEntityId) return true;
+      if (
+        data.sessionFile &&
+        currentUuid &&
+        (data.sessionFile === currentUuid ||
+          data.sessionFile.includes(currentUuid) ||
+          currentUuid.includes(data.sessionFile))
+      ) {
+        return true;
+      }
+      if (data.cwd && currentCwd && data.cwd === currentCwd) return true;
+      return false;
+    };
 
     sse.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
         if (!data || !data.type) return;
+        if (!isTargetMatch(data)) return;
 
-        if (data.type === 'user_message' && data.nodeId === selectedEntityId) {
+        if (data.type === 'user_message') {
+          setIsSending(true);
+          setAgentPhase('working');
           setChatMessages((prev) => [
             ...prev,
             {
@@ -473,7 +494,8 @@ export const PeekTerminalModal: React.FC = () => {
               timestamp: data.timestamp || Date.now(),
             },
           ]);
-        } else if (data.type === 'agent_start' && data.nodeId === selectedEntityId) {
+        } else if (data.type === 'agent_start') {
+          setIsSending(true);
           setAgentPhase('working');
           setThinkingPreview('');
           setActiveToolName('');
@@ -481,7 +503,7 @@ export const PeekTerminalModal: React.FC = () => {
             const parts = String(data.model).split('/');
             if (parts[1]) setActiveModel(parts[1]);
           }
-          updateEntityStatus(selectedEntityId, 'WORKING', 'Agent executing prompt...');
+          updateEntityStatus(selectedEntityId!, 'WORKING', 'Agent executing prompt...');
           setChatMessages((prev) => [
             ...prev,
             {
@@ -492,10 +514,10 @@ export const PeekTerminalModal: React.FC = () => {
               timestamp: Date.now(),
             },
           ]);
-        } else if (data.type === 'thinking_delta' && data.nodeId === selectedEntityId) {
+        } else if (data.type === 'thinking_delta') {
           setAgentPhase('thinking');
           setThinkingPreview((prev) => (prev + (data.delta || '')).slice(-140));
-        } else if (data.type === 'text_delta' && data.nodeId === selectedEntityId) {
+        } else if (data.type === 'text_delta') {
           setAgentPhase('streaming');
           setChatMessages((prev) => {
             const list = [...prev];
@@ -517,7 +539,7 @@ export const PeekTerminalModal: React.FC = () => {
               },
             ];
           });
-        } else if (data.type === 'tool_start' && data.nodeId === selectedEntityId) {
+        } else if (data.type === 'tool_start') {
           setAgentPhase('tool');
           setActiveToolName(data.tool || 'tool');
           const detail =
@@ -537,7 +559,7 @@ export const PeekTerminalModal: React.FC = () => {
             }
             return prev;
           });
-        } else if (data.type === 'tool_end' && data.nodeId === selectedEntityId) {
+        } else if (data.type === 'tool_end') {
           setChatMessages((prev) => {
             const list = [...prev];
             const last = list[list.length - 1];
@@ -552,21 +574,21 @@ export const PeekTerminalModal: React.FC = () => {
             }
             return prev;
           });
-        } else if (data.type === 'agent_end' && data.nodeId === selectedEntityId) {
-          updateEntityStatus(selectedEntityId, 'IDLE', 'Task complete. State settled to IDLE.');
+        } else if (data.type === 'agent_end') {
+          updateEntityStatus(selectedEntityId!, 'IDLE', 'Task complete. State settled to IDLE.');
           setAgentPhase('idle');
           setActiveToolName('');
           setActiveToolDetail('');
           setThinkingPreview('');
           setIsSending(false);
-        } else if (data.type === 'agent_aborted' && data.nodeId === selectedEntityId) {
-          updateEntityStatus(selectedEntityId, 'IDLE', 'Aborted by user (Esc)');
+        } else if (data.type === 'agent_aborted') {
+          updateEntityStatus(selectedEntityId!, 'IDLE', 'Aborted by user (Esc)');
           setAgentPhase('idle');
           setActiveToolName('');
           setActiveToolDetail('');
           setThinkingPreview('');
           setIsSending(false);
-        } else if (data.type === 'agent_error' && data.nodeId === selectedEntityId) {
+        } else if (data.type === 'agent_error') {
           setChatMessages((prev) => [
             ...prev,
             {
@@ -576,9 +598,10 @@ export const PeekTerminalModal: React.FC = () => {
               timestamp: Date.now(),
             },
           ]);
-          updateEntityStatus(selectedEntityId, 'IDLE', 'Error executing prompt');
+          updateEntityStatus(selectedEntityId!, 'IDLE', 'Error executing prompt');
           setAgentPhase('idle');
           setActiveToolName('');
+          setActiveToolDetail('');
           setThinkingPreview('');
           setIsSending(false);
         }
@@ -588,7 +611,7 @@ export const PeekTerminalModal: React.FC = () => {
     return () => {
       sse.close();
     };
-  }, [selectedEntityId, updateEntityStatus]);
+  }, [selectedEntityId, entity?.uuid, entity?.name, entity?.worktree, updateEntityStatus]);
 
   // Auto-scroll to bottom of chat when new messages or turns arrive
   useEffect(() => {

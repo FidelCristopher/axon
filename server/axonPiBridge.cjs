@@ -378,12 +378,15 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
     `[Pi Bridge] Session [${nodeId}] ready with model: ${session.model?.provider}/${session.model?.id}`
   );
 
+  const resolvedSessionFile = existingFile ? path.basename(existingFile) : (sessionLookupId || nodeId);
+  const meta = { nodeId, sessionFile: resolvedSessionFile, cwd: safeCwd };
+
   session.subscribe((event) => {
     if (event.type === "message_update") {
       const assistantEvent = event.assistantMessageEvent;
       if (assistantEvent && assistantEvent.type === "text_delta") {
         broadcastEvent("text_delta", {
-          nodeId,
+          ...meta,
           delta: assistantEvent.delta,
         });
         const pending = telegramPendingReplies.get(nodeId);
@@ -392,7 +395,7 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
         }
       } else if (assistantEvent && assistantEvent.type === "thinking_delta") {
         broadcastEvent("thinking_delta", {
-          nodeId,
+          ...meta,
           delta: assistantEvent.delta,
         });
       }
@@ -401,7 +404,7 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
         const errMsg = event.message.errorMessage || "Model returned an error";
         console.error(`[Pi Bridge] [${nodeId}] Model error:`, errMsg);
         broadcastEvent("agent_error", {
-          nodeId,
+          ...meta,
           error: errMsg,
         });
         const pending = telegramPendingReplies.get(nodeId);
@@ -412,25 +415,25 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
       }
     } else if (event.type === "tool_execution_start") {
       broadcastEvent("tool_start", {
-        nodeId,
+        ...meta,
         tool: event.toolName,
         args: event.args,
       });
     } else if (event.type === "tool_execution_end") {
       broadcastEvent("tool_end", {
-        nodeId,
+        ...meta,
         tool: event.toolName,
         isError: event.isError,
       });
     } else if (event.type === "agent_start") {
       broadcastEvent("agent_start", {
-        nodeId,
+        ...meta,
         model: session.model ? `${session.model.provider}/${session.model.id}` : undefined,
       });
     } else if (event.type === "agent_end") {
       const usage = session.messages[session.messages.length - 1]?.usage || {};
       broadcastEvent("agent_end", {
-        nodeId,
+        ...meta,
         usage,
       });
       const pending = telegramPendingReplies.get(nodeId);
@@ -711,6 +714,8 @@ async function dispatchTelegramPrompt(chatId, nodeId, promptText, images = []) {
 
   broadcastEvent("user_message", {
     nodeId,
+    sessionFile: nodeCfg.sessionId || nodeId,
+    cwd: nodeCfg.cwd,
     text: `[Telegram] ${promptText}`,
     source: "telegram",
     timestamp: Date.now(),
