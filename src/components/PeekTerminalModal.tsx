@@ -133,49 +133,70 @@ export const PeekTerminalModal: React.FC = () => {
 
     const cwd = resolveCwd(entity);
     const sessionLookup = entity.uuid || entity.id;
-    const cols = term.cols || 120;
-    const rows = term.rows || 34;
 
-    setConnStatus('connecting');
-    const wsUrl =
-      `ws://127.0.0.1:1425/ws/pty?nodeId=${encodeURIComponent(entity.id)}` +
-      `&cwd=${encodeURIComponent(cwd)}` +
-      `&sessionFile=${encodeURIComponent(sessionLookup)}` +
-      `&cols=${cols}&rows=${rows}` +
-      (restartNonce > 0 ? '&restart=1' : '');
+    let isDisposed = false;
+    let reconnectTimer: number | null = null;
+    let shouldRestartOnce = restartNonce > 0;
 
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+    const connectWs = () => {
+      if (isDisposed) return;
+      setConnStatus('connecting');
+      const cols = term.cols || 120;
+      const rows = term.rows || 34;
 
-    ws.onopen = () => {
-      setConnStatus('connected');
-      fitAddon.fit();
-      ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
-      term.focus();
-    };
+      const wsUrl =
+        `ws://127.0.0.1:1425/ws/pty?nodeId=${encodeURIComponent(entity.id)}` +
+        `&cwd=${encodeURIComponent(cwd)}` +
+        `&sessionFile=${encodeURIComponent(sessionLookup)}` +
+        `&cols=${cols}&rows=${rows}` +
+        (shouldRestartOnce ? '&restart=1' : '');
 
-    ws.onmessage = (evt) => {
-      try {
-        const msg = JSON.parse(evt.data);
-        if (msg.type === 'output' && typeof msg.data === 'string') {
-          term.write(msg.data);
+      shouldRestartOnce = false;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (isDisposed) {
+          ws.close();
+          return;
         }
-      } catch {
-        // ignore
-      }
+        setConnStatus('connected');
+        fitAddon.fit();
+        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+        term.focus();
+      };
+
+      ws.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          if (msg.type === 'output' && typeof msg.data === 'string') {
+            term.write(msg.data);
+          }
+        } catch {
+          // ignore
+        }
+      };
+
+      ws.onerror = () => {
+        setConnStatus('disconnected');
+      };
+
+      ws.onclose = () => {
+        if (isDisposed) return;
+        setConnStatus('disconnected');
+        term.write('\r\n\x1b[33m[Axon Bridge reconnecting automatically...]\x1b[0m\r\n');
+        reconnectTimer = window.setTimeout(() => {
+          connectWs();
+        }, 1500);
+      };
     };
 
-    ws.onerror = () => {
-      setConnStatus('disconnected');
-    };
-
-    ws.onclose = () => {
-      setConnStatus('disconnected');
-    };
+    connectWs();
 
     // Forward all terminal keystrokes directly to real Pi PTY
     const dataDisp = term.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'input', data }));
       }
     });
@@ -201,7 +222,8 @@ export const PeekTerminalModal: React.FC = () => {
     const resizeObserver = new ResizeObserver(() => {
       try {
         fitAddon.fit();
-        if (ws.readyState === WebSocket.OPEN) {
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
         }
       } catch {
@@ -234,7 +256,8 @@ export const PeekTerminalModal: React.FC = () => {
       if (text) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        if (ws.readyState === WebSocket.OPEN) {
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'input', data: text }));
         }
       }
@@ -242,11 +265,13 @@ export const PeekTerminalModal: React.FC = () => {
     window.addEventListener('paste', handlePaste, true);
 
     return () => {
+      isDisposed = true;
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
       window.removeEventListener('paste', handlePaste, true);
       resizeObserver.disconnect();
       dataDisp.dispose();
       // Closing WebSocket ONLY detaches this viewer; the real Pi PTY keeps running in background!
-      ws.close();
+      wsRef.current?.close();
       wsRef.current = null;
       term.dispose();
       termRef.current = null;

@@ -66,12 +66,12 @@ namespace AxonStudio
 
         static void StartWslPiBridge()
         {
-            // Keep wsl.exe attached in foreground (hidden window) so WSL2 NEVER auto-shuts down
-            // even when WezTerm is completely closed.
+            // Keep wsl.exe attached in foreground (hidden window) running the self-healing
+            // Axon supervisor so WSL2 NEVER auto-shuts down and axonPiBridge auto-restarts in 0.5s.
             var psi = new ProcessStartInfo
             {
                 FileName = "wsl.exe",
-                Arguments = "-d Ubuntu -u fidel -- /home/fidel/.local/share/pi-node/current/bin/node /mnt/c/Users/Pongo/axon/server/axonPiBridge.cjs",
+                Arguments = "-d Ubuntu -u fidel -- bash /mnt/c/Users/Pongo/axon/server/axonSupervisor.sh",
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden
