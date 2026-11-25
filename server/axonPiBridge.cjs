@@ -1,7 +1,8 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { execFile } = require("child_process");
+const os = require("os");
+const { execFile, spawn } = require("child_process");
 const {
   createAgentSessionServices,
   createAgentSessionFromServices,
@@ -11,7 +12,118 @@ const {
 const PORT = 1425;
 const SESSIONS_DIR = "/home/fidel/.pi/agent/sessions/--home-fidel--";
 const activeSessions = new Map();
+const servicesCache = new Map();
 const sseClients = new Set();
+
+// ============================================================================
+// JARVIS TELEGRAM BOT <-> AXON STUDIO 2-WAY BRIDGE
+// ============================================================================
+const TELEGRAM_BOT_TOKEN =
+  process.env.JARVIS_BOT_TOKEN || "9066504208:AAFHUFWIAW00z2Zk6snbGv2xP7lCEs7yH1k";
+const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
+const TELEGRAM_OWNER_FILE = path.join(os.homedir(), ".pi", "agent", "telegram_owner.json");
+
+const AXON_NODES = {
+  "hub-main": {
+    label: "Hub Utama (Lead Architect)",
+    cwd: "/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning",
+    sessionId: "9d8a42bd-be72-4036-82ac-daccb1d64d3c",
+  },
+  "node-dev-1": {
+    label: "Dev 1 (Belajar)",
+    cwd: "/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning",
+    sessionId: "4f28aa1b-9e41-4172-8801-7fa8bc31889a",
+  },
+  "node-dev-2": {
+    label: "Dev 2 (Cerita)",
+    cwd: "/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning",
+    sessionId: "8c91024e-128a-4f51-b019-33aa91b17cc1",
+  },
+  "node-designer": {
+    label: "Designer (Aset)",
+    cwd: "/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning",
+    sessionId: "e5518b9c-7201-49b8-9311-190ab751b32f",
+  },
+  "node-qa": {
+    label: "QA & Tester",
+    cwd: "/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning",
+    sessionId: "b71239aa-5529-410a-8120-cf918a22114d",
+  },
+};
+
+let telegramActiveNode = "hub-main";
+const telegramPendingReplies = new Map(); // nodeId -> { chatId, buffer }
+let telegramOnline = false;
+let telegramLastPollAt = null;
+
+function getTelegramOwnerChatId() {
+  try {
+    if (fs.existsSync(TELEGRAM_OWNER_FILE)) {
+      const data = JSON.parse(fs.readFileSync(TELEGRAM_OWNER_FILE, "utf8"));
+      if (data && data.chatId) return Number(data.chatId);
+    }
+  } catch {}
+  return null;
+}
+
+function tgCurlJson(method, body = {}, timeoutSec = 35) {
+  return new Promise((resolve) => {
+    const cp = spawn("curl", [
+      "-4",
+      "-s",
+      "--http1.1",
+      "-m",
+      String(timeoutSec),
+      "-X",
+      "POST",
+      `${TELEGRAM_API}/${method}`,
+      "-H",
+      "Content-Type: application/json",
+      "-d",
+      "@-",
+    ]);
+    let stdout = "";
+    cp.stdout.on("data", (d) => (stdout += d));
+    cp.on("close", () => {
+      try {
+        resolve(JSON.parse(stdout));
+      } catch {
+        resolve(null);
+      }
+    });
+    cp.on("error", () => resolve(null));
+    try {
+      cp.stdin.write(JSON.stringify(body));
+      cp.stdin.end();
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function tgSendText(chatId, text, replyMarkup = null) {
+  const clean = String(text || "(Tidak ada respon teks)").trim();
+  const maxLen = 3900;
+  for (let i = 0; i < clean.length; i += maxLen) {
+    const chunk = clean.slice(i, i + maxLen);
+    const payload = { chat_id: chatId, text: chunk };
+    if (replyMarkup && i + maxLen >= clean.length) {
+      payload.reply_markup = replyMarkup;
+    }
+    await tgCurlJson("sendMessage", payload, 20);
+  }
+}
+
+function getNodesKeyboard() {
+  return {
+    inline_keyboard: Object.entries(AXON_NODES).map(([id, info]) => [
+      {
+        text: `${id === telegramActiveNode ? "[AKTIF] " : ""}${info.label} (${id})`,
+        callback_data: `axon_node:${id}`,
+      },
+    ]),
+  };
+}
 
 function broadcastEvent(type, data) {
   const payload = `data: ${JSON.stringify({ type, ...data })}\n\n`;
@@ -116,7 +228,11 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
       (existingFile ? ` (resuming ${path.basename(existingFile)})` : " (fresh session)")
   );
 
-  const services = await createAgentSessionServices({ cwd: safeCwd });
+  let services = servicesCache.get(safeCwd);
+  if (!services) {
+    services = await createAgentSessionServices({ cwd: safeCwd });
+    servicesCache.set(safeCwd, services);
+  }
   const opts = { services };
   if (existingFile) {
     try {
@@ -139,6 +255,10 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
           nodeId,
           delta: assistantEvent.delta,
         });
+        const pending = telegramPendingReplies.get(nodeId);
+        if (pending) {
+          pending.buffer += assistantEvent.delta || "";
+        }
       } else if (assistantEvent && assistantEvent.type === "thinking_delta") {
         broadcastEvent("thinking_delta", {
           nodeId,
@@ -153,6 +273,11 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
           nodeId,
           error: errMsg,
         });
+        const pending = telegramPendingReplies.get(nodeId);
+        if (pending) {
+          telegramPendingReplies.delete(nodeId);
+          tgSendText(pending.chatId, `[Axon • ${nodeId}] Error:\n${errMsg}`).catch(() => {});
+        }
       }
     } else if (event.type === "tool_execution_start") {
       broadcastEvent("tool_start", {
@@ -177,6 +302,12 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
         nodeId,
         usage,
       });
+      const pending = telegramPendingReplies.get(nodeId);
+      if (pending) {
+        telegramPendingReplies.delete(nodeId);
+        const replyText = pending.buffer.trim() || "(Selesai tanpa teks output)";
+        tgSendText(pending.chatId, `[Axon • ${nodeId}]\n\n${replyText}`).catch(() => {});
+      }
     }
   });
 
@@ -239,6 +370,12 @@ const server = http.createServer(async (req, res) => {
         status: "online",
         activeSessions: activeSessions.size,
         sessionsDir: SESSIONS_DIR,
+        telegram: {
+          online: telegramOnline,
+          activeNode: telegramActiveNode,
+          ownerChatId: getTelegramOwnerChatId(),
+          lastPollAt: telegramLastPollAt,
+        },
       })
     );
     return;
@@ -352,6 +489,27 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // 5b. Force Abort / Cancel Running Agent Turn (Esc Shortcut)
+  if (url.pathname === "/api/abort" && req.method === "POST") {
+    try {
+      const { nodeId } = await readJsonBody(req);
+      if (nodeId && activeSessions.has(nodeId)) {
+        const { session } = activeSessions.get(nodeId);
+        console.log(`[Pi Bridge] Aborting active execution for [${nodeId}]`);
+        if (typeof session.abort === "function") {
+          await session.abort();
+        }
+      }
+      broadcastEvent("agent_aborted", { nodeId });
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ aborted: true, nodeId }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
   // 6. Real Git Worktree Creation
   if (url.pathname === "/api/worktree" && req.method === "POST") {
     try {
@@ -412,4 +570,148 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`[Axon Pi Native Bridge] Online at http://127.0.0.1:${PORT}`);
+  startTelegramBridge();
 });
+
+async function handleTelegramUpdate(update) {
+  const ownerChatId = getTelegramOwnerChatId();
+
+  // Handle inline button node switch
+  if (update.callback_query) {
+    const cb = update.callback_query;
+    const chatId = cb.message?.chat?.id;
+    if (ownerChatId && Number(chatId) !== ownerChatId) return;
+
+    await tgCurlJson("answerCallbackQuery", { callback_query_id: cb.id }, 10);
+    if (cb.data && cb.data.startsWith("axon_node:")) {
+      const nextNode = cb.data.replace("axon_node:", "");
+      if (AXON_NODES[nextNode]) {
+        telegramActiveNode = nextNode;
+        await tgSendText(
+          chatId,
+          `Target Axon dipindahkan ke:\n${AXON_NODES[nextNode].label} (${nextNode})\n\nLangsung kirim pesan untuk chat ke node ini.`
+        );
+      }
+    }
+    return;
+  }
+
+  const msg = update.message;
+  if (!msg || !msg.chat) return;
+  const chatId = msg.chat.id;
+
+  // Owner security gate
+  if (ownerChatId && Number(chatId) !== ownerChatId) {
+    console.warn(`[Axon Telegram] Ignored unauthorized chatId: ${chatId}`);
+    return;
+  }
+
+  const text = (msg.text || msg.caption || "").trim();
+  if (!text) return;
+
+  // Commands
+  if (text === "/start" || text === "/help") {
+    const info = AXON_NODES[telegramActiveNode] || { label: telegramActiveNode };
+    await tgSendText(
+      chatId,
+      `Jarvis x Axon Studio Bridge AKTIF.\n\n` +
+        `Node aktif: ${info.label} (${telegramActiveNode})\n\n` +
+        `Perintah:\n` +
+        `/nodes - Pilih node Axon tujuan\n` +
+        `/status - Cek status Axon Bridge\n\n` +
+        `Atau langsung ketik pesan apa saja untuk dikirim ke Axon Studio!`,
+      getNodesKeyboard()
+    );
+    return;
+  }
+
+  if (text === "/nodes") {
+    await tgSendText(chatId, "Pilih node Axon tujuan:", getNodesKeyboard());
+    return;
+  }
+
+  if (text.startsWith("/node ")) {
+    const reqNode = text.slice(6).trim();
+    if (AXON_NODES[reqNode]) {
+      telegramActiveNode = reqNode;
+      await tgSendText(chatId, `Node aktif diubah ke: ${AXON_NODES[reqNode].label} (${reqNode})`);
+    } else {
+      await tgSendText(chatId, `Node tidak dikenal: ${reqNode}`, getNodesKeyboard());
+    }
+    return;
+  }
+
+  if (text === "/status") {
+    const info = AXON_NODES[telegramActiveNode] || { label: telegramActiveNode };
+    await tgSendText(
+      chatId,
+      `Axon Bridge: ONLINE (port ${PORT})\n` +
+        `Node aktif: ${info.label} (${telegramActiveNode})\n` +
+        `Sesi Pi aktif: ${activeSessions.size}`
+    );
+    return;
+  }
+
+  // Forward normal chat message directly to Axon Pi session
+  const nodeId = telegramActiveNode;
+  const nodeCfg = AXON_NODES[nodeId] || AXON_NODES["hub-main"];
+
+  await tgCurlJson("sendChatAction", { chat_id: chatId, action: "typing" }, 10);
+  broadcastEvent("user_message", {
+    nodeId,
+    text: `[Telegram] ${text}`,
+    source: "telegram",
+    timestamp: Date.now(),
+  });
+
+  try {
+    const { session } = await getOrCreateSession(nodeId, nodeCfg.cwd, nodeCfg.sessionId);
+    telegramPendingReplies.set(nodeId, { chatId, buffer: "" });
+    session.prompt(text).catch((err) => {
+      console.error(`[Axon Telegram] Prompt error on [${nodeId}]:`, err);
+      telegramPendingReplies.delete(nodeId);
+      broadcastEvent("agent_error", { nodeId, error: err.message });
+      tgSendText(chatId, `[Axon • ${nodeId}] Gagal memproses:\n${err.message}`).catch(() => {});
+    });
+  } catch (err) {
+    telegramPendingReplies.delete(nodeId);
+    await tgSendText(chatId, `[Axon • ${nodeId}] Error koneksi sesi:\n${err.message}`);
+  }
+}
+
+async function startTelegramBridge() {
+  if (!TELEGRAM_BOT_TOKEN) return;
+  console.log("[Axon Telegram] Starting Jarvis <-> Axon 2-Way Bridge...");
+  let offset = 0;
+
+  // Flush stale updates on startup so old chats aren't replayed
+  const initRes = await tgCurlJson("getUpdates", { offset: -1, timeout: 1 }, 10);
+  if (initRes && initRes.ok) {
+    telegramOnline = true;
+    if (Array.isArray(initRes.result) && initRes.result.length > 0) {
+      offset = initRes.result[initRes.result.length - 1].update_id + 1;
+    }
+    console.log(`[Axon Telegram] Jarvis Bot connected! Active node: ${telegramActiveNode}`);
+  }
+
+  const poll = async () => {
+    try {
+      const res = await tgCurlJson("getUpdates", { offset, timeout: 25 }, 35);
+      telegramLastPollAt = new Date().toISOString();
+      if (res && res.ok) {
+        telegramOnline = true;
+        for (const update of res.result || []) {
+          offset = update.update_id + 1;
+          handleTelegramUpdate(update).catch((err) =>
+            console.error("[Axon Telegram] Update handler error:", err)
+          );
+        }
+      }
+    } catch (err) {
+      console.error("[Axon Telegram] Poll error:", err.message);
+    }
+    setTimeout(poll, 400);
+  };
+
+  poll();
+}

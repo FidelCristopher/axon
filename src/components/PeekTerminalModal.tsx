@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAxonStore, AVAILABLE_SKILLS } from '../store/axonStore';
-import { X, Scissors, Send, Image as ImageIcon } from 'lucide-react';
+import { X, Scissors, Send, Image as ImageIcon, Square } from 'lucide-react';
 
 interface SlashCommandItem {
   command: string;
@@ -284,6 +284,7 @@ export const PeekTerminalModal: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const [agentPhase, setAgentPhase] = useState<'idle' | 'working' | 'thinking' | 'tool' | 'streaming'>('idle');
   const [activeToolName, setActiveToolName] = useState<string>('');
+  const [activeToolDetail, setActiveToolDetail] = useState<string>('');
   const [thinkingPreview, setThinkingPreview] = useState<string>('');
   const [activeModel, setActiveModel] = useState('gemini-3.8-flash');
   const [thinkingLevel, setThinkingLevel] = useState<'off' | 'low' | 'medium' | 'high'>('medium');
@@ -364,12 +365,57 @@ export const PeekTerminalModal: React.FC = () => {
   // Worktree real directory mapping
   const resolveCwd = (ent: typeof entity) => {
     if (!ent) return '/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning';
+    const label = `${ent.name || ''} ${ent.worktree || ''}`.toLowerCase();
     if (ent.worktree === 'feat/belajar-page') return '/mnt/c/Users/Pongo/AndroidStudioProjects/halohanzi-part1';
     if (ent.worktree === 'feat/cerita-page') return '/mnt/c/Users/Pongo/AndroidStudioProjects/halohanzi-part2';
     if (ent.worktree === 'feat/assets') return '/mnt/c/Users/Pongo/AndroidStudioProjects/halohanzi-assets';
-    if (ent.worktree === 'axon/main') return '/mnt/c/Users/Pongo/axon';
+    if (ent.worktree === 'axon/main' || label.includes('axon')) return '/mnt/c/Users/Pongo/axon';
+    if (label.includes('matcha')) return '/mnt/c/Users/Pongo/matcha-showcase';
     return '/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning';
   };
+
+  // Force abort running Pi execution (Esc shortcut or Stop button)
+  const handleAbortExecution = useCallback(async () => {
+    if (!entity || !isSending) return;
+    try {
+      await fetch('http://127.0.0.1:1425/api/abort', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodeId: entity.id }),
+      });
+    } catch {
+      // still unlock local UI immediately
+    }
+    setIsSending(false);
+    setAgentPhase('idle');
+    setActiveToolName('');
+    setActiveToolDetail('');
+    setThinkingPreview('');
+    updateEntityStatus(entity.id, 'IDLE', 'Aborted by user (Esc)');
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        id: `abort-${Date.now()}`,
+        role: 'system_notice',
+        text: 'Execution aborted by user (Esc)',
+        timestamp: Date.now(),
+      },
+    ]);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, [entity, isSending, updateEntityStatus]);
+
+  // Global Esc keyboard shortcut to force stop running execution
+  useEffect(() => {
+    if (!isTerminalModalOpen || !isSending) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleAbortExecution();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isTerminalModalOpen, isSending, handleAbortExecution]);
 
   // Fetch real session history (.jsonl) whenever modal opens or active entity changes
   useEffect(() => {
@@ -411,7 +457,17 @@ export const PeekTerminalModal: React.FC = () => {
         const data = JSON.parse(e.data);
         if (!data || !data.type) return;
 
-        if (data.type === 'agent_start' && data.nodeId === selectedEntityId) {
+        if (data.type === 'user_message' && data.nodeId === selectedEntityId) {
+          setChatMessages((prev) => [
+            ...prev,
+            {
+              id: `tg-user-${data.timestamp || Date.now()}`,
+              role: 'user',
+              text: data.text || '',
+              timestamp: data.timestamp || Date.now(),
+            },
+          ]);
+        } else if (data.type === 'agent_start' && data.nodeId === selectedEntityId) {
           setAgentPhase('working');
           setThinkingPreview('');
           setActiveToolName('');
@@ -458,6 +514,12 @@ export const PeekTerminalModal: React.FC = () => {
         } else if (data.type === 'tool_start' && data.nodeId === selectedEntityId) {
           setAgentPhase('tool');
           setActiveToolName(data.tool || 'tool');
+          const detail =
+            data.args?.command ||
+            data.args?.path ||
+            data.args?.query ||
+            (data.args ? JSON.stringify(data.args).slice(0, 90) : '');
+          setActiveToolDetail(String(detail).slice(0, 110));
           setChatMessages((prev) => {
             const list = [...prev];
             const last = list[list.length - 1];
@@ -488,6 +550,14 @@ export const PeekTerminalModal: React.FC = () => {
           updateEntityStatus(selectedEntityId, 'IDLE', 'Task complete. State settled to IDLE.');
           setAgentPhase('idle');
           setActiveToolName('');
+          setActiveToolDetail('');
+          setThinkingPreview('');
+          setIsSending(false);
+        } else if (data.type === 'agent_aborted' && data.nodeId === selectedEntityId) {
+          updateEntityStatus(selectedEntityId, 'IDLE', 'Aborted by user (Esc)');
+          setAgentPhase('idle');
+          setActiveToolName('');
+          setActiveToolDetail('');
           setThinkingPreview('');
           setIsSending(false);
         } else if (data.type === 'agent_error' && data.nodeId === selectedEntityId) {
@@ -914,14 +984,17 @@ export const PeekTerminalModal: React.FC = () => {
                       ? '[STREAMING]'
                       : '[WORKING]'}
                   </span>
-                  <span className="text-[#a3a3a3]">
+                  <span className="text-[#a3a3a3] truncate max-w-[600px]">
                     {agentPhase === 'thinking'
                       ? 'Model sedang berpikir...'
                       : agentPhase === 'tool'
-                      ? `Menjalankan tool ${activeToolName}...`
+                      ? activeToolDetail || `Menjalankan tool ${activeToolName}...`
                       : agentPhase === 'streaming'
                       ? 'Menulis respons...'
                       : 'Menghubungi Pi engine (antigravity)...'}
+                  </span>
+                  <span className="text-[11px] text-[#737373] border border-[#262626] rounded px-1.5 py-0.2 shrink-0">
+                    Esc to stop
                   </span>
                 </div>
                 {agentPhase === 'thinking' && thinkingPreview && (
@@ -1074,14 +1147,26 @@ export const PeekTerminalModal: React.FC = () => {
             className="flex-1 bg-[#000000] border border-[#262626] rounded text-[14px] px-3 py-1.5 text-[#ffffff] placeholder-[#525252] focus:outline-none focus:border-[#ff00ff] disabled:opacity-50"
             autoFocus
           />
-          <button
-            type="submit"
-            disabled={(!inputPrompt.trim() && attachedImages.length === 0) || isSending}
-            className="px-3.5 py-1.5 rounded bg-[#18181b] hover:bg-[#262626] hover:text-[#ffffff] text-[13px] font-bold text-[#ff00ff] border border-[#262626] disabled:opacity-30 shadow-xs flex items-center space-x-1 shrink-0 transition-colors"
-          >
-            <Send className="w-3.5 h-3.5 text-[#ff00ff]" />
-            <span>{isSending ? 'Running...' : 'Send ↵'}</span>
-          </button>
+          {isSending ? (
+            <button
+              type="button"
+              onClick={handleAbortExecution}
+              className="px-3.5 py-1.5 rounded bg-[#ef4444]/15 hover:bg-[#ef4444]/25 text-[13px] font-bold text-[#f87171] border border-[#ef4444]/40 shadow-xs flex items-center space-x-1.5 shrink-0 transition-colors"
+              title="Force stop execution (Esc)"
+            >
+              <Square className="w-3 h-3 fill-[#f87171] text-[#f87171]" />
+              <span>Stop (Esc)</span>
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!inputPrompt.trim() && attachedImages.length === 0}
+              className="px-3.5 py-1.5 rounded bg-[#18181b] hover:bg-[#262626] hover:text-[#ffffff] text-[13px] font-bold text-[#ff00ff] border border-[#262626] disabled:opacity-30 shadow-xs flex items-center space-x-1 shrink-0 transition-colors"
+            >
+              <Send className="w-3.5 h-3.5 text-[#ff00ff]" />
+              <span>Send ↵</span>
+            </button>
+          )}
         </form>
       </div>
     </div>
