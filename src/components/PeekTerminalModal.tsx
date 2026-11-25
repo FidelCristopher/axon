@@ -421,6 +421,12 @@ export const PeekTerminalModal: React.FC = () => {
   useEffect(() => {
     if (!isTerminalModalOpen || !entity) return;
 
+    // Reset per-node transient streaming UI state so one session never bleeds into another
+    setIsSending(false);
+    setAgentPhase('idle');
+    setActiveToolName('');
+    setActiveToolDetail('');
+    setThinkingPreview('');
     setIsLoadingHistory(true);
     setVisibleCount(80);
     const targetLookup = entity.uuid || entity.id;
@@ -975,7 +981,7 @@ export const PeekTerminalModal: React.FC = () => {
               <div className="w-3.5 h-3.5 mt-0.5 border-2 border-[#ff00ff] border-t-transparent rounded-full animate-spin shrink-0" />
               <div className="space-y-0.5 min-w-0">
                 <div className="flex items-center space-x-2">
-                  <span className="font-bold text-[#ffff00]">
+                  <span className="font-bold text-[#ffff00] whitespace-nowrap shrink-0">
                     {agentPhase === 'thinking'
                       ? '[THINKING]'
                       : agentPhase === 'tool'
