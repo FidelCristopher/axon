@@ -585,6 +585,7 @@ function extractSessionMeta(fullPath, fileName, stat) {
 
   let name = "";
   let category = "Global / Home";
+  let cwd = "/home/fidel";
   let firstUserText = "";
 
   try {
@@ -598,6 +599,7 @@ function extractSessionMeta(fullPath, fileName, stat) {
         const hdr = JSON.parse(firstLine);
         if (hdr.type === "session" && hdr.cwd) {
           const c = String(hdr.cwd);
+          cwd = c;
           if (c.includes("halohanzi-part1")) category = "HaloHanzi Part 1";
           else if (c.includes("halohanzi-part2")) category = "HaloHanzi Part 2";
           else if (c.includes("halohanzi-assets")) category = "HaloHanzi Assets";
@@ -666,6 +668,7 @@ function extractSessionMeta(fullPath, fileName, stat) {
     size: stat.size,
     name: displayName,
     category,
+    cwd,
   };
   sessionMetaCache.set(fileName, meta);
   return meta;
@@ -738,6 +741,7 @@ const server = http.createServer(async (req, res) => {
             fileName,
             name: meta.name,
             category: meta.category,
+            cwd: meta.cwd,
             role: "",
             tokens: 0,
             size: stat.size,

@@ -184,7 +184,7 @@ interface AxonState {
 
   // Actions
   switchProject: (projectId: string) => void;
-  selectSessionTopology: (session: { id: string; name: string; category?: string; role?: string; tokens?: number; size?: number }) => void;
+  selectSessionTopology: (session: { id: string; name: string; category?: string; cwd?: string; role?: string; tokens?: number; size?: number }) => void;
   setSelectedEntityId: (id: string) => void;
   toggleSessionSelect: (id: string) => void;
   selectAllSessions: (select: boolean) => void;
@@ -264,6 +264,7 @@ export const useAxonStore = create<AxonState>((set, get) => {
             name: 'Matcha Showcase (Main)',
             type: 'hub',
             worktree: 'main',
+            worktreePath: '/mnt/c/Users/Pongo/matcha-showcase',
             status: 'IDLE',
             statusMessage: 'Live menu & customizer orchestrator',
             tokenUsed: session.tokens || 31000,
@@ -300,6 +301,7 @@ export const useAxonStore = create<AxonState>((set, get) => {
             name: session.name,
             type: (session.role as any) || 'dev',
             worktree: session.category === 'Global' ? 'main' : session.category || 'main',
+            worktreePath: session.cwd || '/home/fidel',
             status: 'IDLE',
             statusMessage: 'Session entity ready (Zero-Idle)',
             tokenUsed: session.tokens || 15000,

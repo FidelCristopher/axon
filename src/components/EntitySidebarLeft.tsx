@@ -17,6 +17,7 @@ interface PiSessionItem {
   fileName: string;
   name: string;
   category: string;
+  cwd?: string;
   role: string;
   tokens: number;
   size: number;

@@ -26,7 +26,7 @@ export const PeekTerminalModal: React.FC = () => {
   const entity = entities.find((e) => e.id === selectedEntityId);
 
   const resolveCwd = useCallback((ent: typeof entity) => {
-    if (!ent) return '/mnt/c/Users/Pongo/axon';
+    if (!ent) return '/home/fidel';
     if (ent.worktreePath) return ent.worktreePath;
     const label = `${ent.name || ''} ${ent.worktree || ''}`.toLowerCase();
     if (ent.worktree === 'feat/belajar-page') return '/mnt/c/Users/Pongo/AndroidStudioProjects/halohanzi-part1';
@@ -34,7 +34,8 @@ export const PeekTerminalModal: React.FC = () => {
     if (ent.worktree === 'feat/assets') return '/mnt/c/Users/Pongo/AndroidStudioProjects/halohanzi-assets';
     if (ent.worktree === 'axon/main' || label.includes('axon')) return '/mnt/c/Users/Pongo/axon';
     if (label.includes('matcha')) return '/mnt/c/Users/Pongo/matcha-showcase';
-    return '/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning';
+    if (label.includes('chinese') || label.includes('hanzi')) return '/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning';
+    return '/home/fidel';
   }, []);
 
   const sendPtyInput = useCallback((data: string) => {
