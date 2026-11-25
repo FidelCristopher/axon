@@ -190,7 +190,7 @@ interface AxonState {
   selectAllSessions: (select: boolean) => void;
   setActiveViewTab: (tab: 'graph' | 'split' | 'workbench') => void;
   setIsTerminalModalOpen: (open: boolean) => void;
-  addEntity: (name: string, type: GraphEntity['type'], worktree: string) => void;
+  addEntity: (name: string, type: GraphEntity['type'], worktree: string, worktreePath?: string) => void;
   removeEntity: (id: string) => void;
   updateEntityStatus: (id: string, status: NodeStatus, message?: string) => void;
   applySkillsToSelected: (skillIds: string[]) => void;
@@ -361,13 +361,14 @@ export const useAxonStore = create<AxonState>((set, get) => {
     setActiveViewTab: (tab) => set({ activeViewTab: tab }),
     setIsTerminalModalOpen: (open) => set({ isTerminalModalOpen: open }),
 
-    addEntity: (name, type, worktree) => {
+    addEntity: (name, type, worktree, worktreePath) => {
       const newEntity: GraphEntity = {
         id: `entity-${Date.now()}`,
         uuid: crypto.randomUUID ? crypto.randomUUID() : `uuid-${Date.now()}`,
         name: name.trim() || `Node ${get().entities.length + 1}`,
         type,
         worktree: worktree.trim() || 'main',
+        worktreePath: worktreePath || undefined,
         status: 'IDLE',
         statusMessage: 'Entity node online (Zero-Idle)',
         tokenUsed: 15000,

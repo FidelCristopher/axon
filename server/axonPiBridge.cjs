@@ -645,31 +645,144 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 6. Real Git Worktree Creation
+  // 6. Real Git Worktree Creation (auto-computes sibling folder & supports new or existing branch)
   if (url.pathname === "/api/worktree" && req.method === "POST") {
     try {
       const { repoPath, branchName, worktreeDir } = await readJsonBody(req);
-      if (!repoPath || !branchName || !worktreeDir) {
+      if (!repoPath || !branchName) {
         res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "repoPath, branchName, and worktreeDir are required" }));
+        res.end(JSON.stringify({ error: "repoPath and branchName are required" }));
         return;
       }
-      execFile(
-        "git",
-        ["-C", repoPath, "worktree", "add", "-b", branchName, worktreeDir],
-        (err, stdout, stderr) => {
-          if (err) {
-            res.writeHead(500, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ success: false, error: stderr || err.message }));
-            return;
-          }
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: true, stdout }));
-        }
+
+      const cleanBranch = String(branchName).trim().replace(/\s+/g, "-");
+      const slug = cleanBranch.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+      const repoBase = path.basename(repoPath);
+      const targetDir =
+        worktreeDir && String(worktreeDir).trim()
+          ? String(worktreeDir).trim()
+          : path.join(path.dirname(repoPath), `${repoBase}-${slug || "branch"}`);
+
+      const runGit = (args) =>
+        new Promise((resolve, reject) => {
+          execFile("git", ["-C", repoPath, ...args], (err, stdout, stderr) => {
+            if (err) reject(new Error((stderr || err.message || "").trim()));
+            else resolve((stdout || "").trim());
+          });
+        });
+
+      // Check if branch already exists locally
+      let branchExists = false;
+      try {
+        await runGit(["show-ref", "--verify", "--quiet", `refs/heads/${cleanBranch}`]);
+        branchExists = true;
+      } catch {
+        branchExists = false;
+      }
+
+      const addArgs = branchExists
+        ? ["worktree", "add", targetDir, cleanBranch]
+        : ["worktree", "add", "-b", cleanBranch, targetDir];
+
+      const stdout = await runGit(addArgs);
+      console.log(`[Pi Bridge] Git worktree created: ${cleanBranch} -> ${targetDir}`);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          success: true,
+          branchName: cleanBranch,
+          worktreeDir: targetDir,
+          stdout,
+        })
       );
     } catch (err) {
+      console.error("[Pi Bridge] Git worktree add failed:", err.message);
       res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: err.message }));
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // 6b. Real Git Worktree & Branch Deletion
+  if (url.pathname === "/api/worktree/remove" && req.method === "POST") {
+    try {
+      const { repoPath, branchName, worktreeDir } = await readJsonBody(req);
+      if (!repoPath || !branchName) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "repoPath and branchName are required" }));
+        return;
+      }
+
+      const cleanBranch = String(branchName).trim();
+      if (["main", "master"].includes(cleanBranch.toLowerCase())) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Protected branch (main/master) cannot be deleted" }));
+        return;
+      }
+
+      const runGit = (args) =>
+        new Promise((resolve, reject) => {
+          execFile("git", ["-C", repoPath, ...args], (err, stdout, stderr) => {
+            if (err) reject(new Error((stderr || err.message || "").trim()));
+            else resolve((stdout || "").trim());
+          });
+        });
+
+      // Locate matching worktree path from `git worktree list --porcelain`
+      let targetDir = worktreeDir || "";
+      try {
+        const listOut = await runGit(["worktree", "list", "--porcelain"]);
+        const blocks = listOut.split(/\n\n+/);
+        for (const blk of blocks) {
+          const wtMatch = blk.match(/^worktree\s+(.+)$/m);
+          const brMatch = blk.match(/^branch\s+refs\/heads\/(.+)$/m);
+          if (wtMatch && brMatch && brMatch[1].trim() === cleanBranch) {
+            targetDir = wtMatch[1].trim();
+            break;
+          }
+        }
+      } catch {
+        // ignore list failure
+      }
+
+      // Safety: never delete the primary repo folder itself
+      const normalizedRepo = path.resolve(repoPath);
+      let removedDir = null;
+      if (targetDir && path.resolve(targetDir) !== normalizedRepo) {
+        try {
+          await runGit(["worktree", "remove", "--force", targetDir]);
+          removedDir = targetDir;
+        } catch (wtErr) {
+          console.warn("[Pi Bridge] worktree remove warning:", wtErr.message);
+        }
+      }
+
+      await runGit(["worktree", "prune"]).catch(() => {});
+
+      let removedBranch = false;
+      try {
+        await runGit(["branch", "-D", cleanBranch]);
+        removedBranch = true;
+      } catch (brErr) {
+        console.warn("[Pi Bridge] branch -D warning:", brErr.message);
+      }
+
+      console.log(
+        `[Pi Bridge] Git worktree removed: branch=${cleanBranch}, dir=${removedDir || "(none)"}, branchDeleted=${removedBranch}`
+      );
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          success: true,
+          removedDir,
+          removedBranch,
+          branchName: cleanBranch,
+        })
+      );
+    } catch (err) {
+      console.error("[Pi Bridge] Git worktree remove failed:", err.message);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
     }
     return;
   }

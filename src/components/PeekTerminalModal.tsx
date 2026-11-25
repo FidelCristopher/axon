@@ -365,6 +365,7 @@ export const PeekTerminalModal: React.FC = () => {
   // Worktree real directory mapping
   const resolveCwd = (ent: typeof entity) => {
     if (!ent) return '/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning';
+    if (ent.worktreePath) return ent.worktreePath;
     const label = `${ent.name || ''} ${ent.worktree || ''}`.toLowerCase();
     if (ent.worktree === 'feat/belajar-page') return '/mnt/c/Users/Pongo/AndroidStudioProjects/halohanzi-part1';
     if (ent.worktree === 'feat/cerita-page') return '/mnt/c/Users/Pongo/AndroidStudioProjects/halohanzi-part2';

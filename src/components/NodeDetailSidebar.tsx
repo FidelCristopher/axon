@@ -73,6 +73,15 @@ export const NodeDetailSidebar: React.FC = () => {
   const [newBranchName, setNewBranchName] = useState('');
   const [newBranchType, setNewBranchType] = useState<GraphEntity['type']>('dev');
   const [newBranchWorktree, setNewBranchWorktree] = useState('feat/new-task');
+  const [worktreeStatus, setWorktreeStatus] = useState<{ type: 'info' | 'success' | 'error'; text: string } | null>(null);
+  const [isWorktreeBusy, setIsWorktreeBusy] = useState(false);
+
+  const resolveActiveRepoPath = () => {
+    const combined = entities.map((e) => `${e.name} ${e.worktree}`).join(' ').toLowerCase();
+    if (combined.includes('matcha')) return '/mnt/c/Users/Pongo/matcha-showcase';
+    if (combined.includes('axon')) return '/mnt/c/Users/Pongo/axon';
+    return '/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning';
+  };
 
   // Flexible Skill Injection States
   const [customSkillInput, setCustomSkillInput] = useState('');
@@ -86,12 +95,90 @@ export const NodeDetailSidebar: React.FC = () => {
   // Live detection of GitHub link in the input
   const detectedGitHub = parseGitHubSkillUrl(customSkillInput);
 
-  const handleCreateBranch = (e: React.FormEvent) => {
+  const handleCreateBranch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newBranchName.trim()) return;
-    addEntity(newBranchName, newBranchType, newBranchWorktree);
-    setNewBranchName('');
-    setIsAddOpen(false);
+    if (!newBranchName.trim() || isWorktreeBusy) return;
+
+    const repoPath = resolveActiveRepoPath();
+    const branchName = newBranchWorktree.trim() || `feat/${newBranchName.trim().toLowerCase().replace(/\s+/g, '-')}`;
+    setIsWorktreeBusy(true);
+    setWorktreeStatus({ type: 'info', text: `Creating Git worktree "${branchName}"...` });
+
+    try {
+      const res = await fetch('http://127.0.0.1:1425/api/worktree', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repoPath, branchName }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      addEntity(newBranchName, newBranchType, data.branchName || branchName, data.worktreeDir);
+      setWorktreeStatus({
+        type: 'success',
+        text: `Worktree created: ${data.branchName} (${data.worktreeDir})`,
+      });
+      setNewBranchName('');
+      setIsAddOpen(false);
+    } catch (err: any) {
+      setWorktreeStatus({
+        type: 'error',
+        text: `Git worktree error: ${err.message}`,
+      });
+    } finally {
+      setIsWorktreeBusy(false);
+      setTimeout(() => setWorktreeStatus(null), 5000);
+    }
+  };
+
+  const handleDeleteBranch = async (session: GraphEntity) => {
+    if (isWorktreeBusy) return;
+    const repoPath = resolveActiveRepoPath();
+    const branchName = session.worktree;
+
+    // Protected main branch: only remove node from UI if somehow triggered, never delete main repo
+    if (!branchName || ['main', 'master'].includes(branchName.toLowerCase())) {
+      removeEntity(session.id);
+      return;
+    }
+
+    setIsWorktreeBusy(true);
+    setWorktreeStatus({ type: 'info', text: `Removing worktree & branch "${branchName}"...` });
+
+    try {
+      const res = await fetch('http://127.0.0.1:1425/api/worktree/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repoPath,
+          branchName,
+          worktreeDir: session.worktreePath,
+        }),
+      });
+      const data = await res.json();
+      removeEntity(session.id);
+      if (!res.ok || !data.success) {
+        setWorktreeStatus({
+          type: 'error',
+          text: `Node removed, Git cleanup note: ${data.error || 'branch not on disk'}`,
+        });
+      } else {
+        setWorktreeStatus({
+          type: 'success',
+          text: `Removed worktree & branch "${branchName}"`,
+        });
+      }
+    } catch (err: any) {
+      removeEntity(session.id);
+      setWorktreeStatus({
+        type: 'error',
+        text: `Node removed (bridge error: ${err.message})`,
+      });
+    } finally {
+      setIsWorktreeBusy(false);
+      setTimeout(() => setWorktreeStatus(null), 5000);
+    }
   };
 
   const handleAddCustomSkillToQueue = (e: React.FormEvent) => {
@@ -182,6 +269,20 @@ export const NodeDetailSidebar: React.FC = () => {
             <span>Compact Select</span>
           </button>
         </div>
+        {/* Real Git Worktree Status Feedback */}
+        {worktreeStatus && (
+          <div
+            className={`px-2.5 py-1.5 rounded-md text-[10px] font-mono border break-all ${
+              worktreeStatus.type === 'success'
+                ? 'bg-[#ecfdf5] text-[#047857] border-[#a7f3d0]'
+                : worktreeStatus.type === 'error'
+                ? 'bg-[#fef2f2] text-[#b91c1c] border-[#fecaca]'
+                : 'bg-[#f8fafc] text-[#475569] border-[#cbd5e1]'
+            }`}
+          >
+            {worktreeStatus.text}
+          </div>
+        )}
       </div>
 
       {/* 2. Inline Form: Add New Branch */}
@@ -325,9 +426,10 @@ export const NodeDetailSidebar: React.FC = () => {
 
                   {session.id !== 'hub-main' && (
                     <button
-                      onClick={() => removeEntity(session.id)}
-                      className="p-1 rounded hover:bg-[#f1f5f9] text-[#94a3b8] hover:text-[#ef4444] transition-colors"
-                      title="Remove branch"
+                      onClick={() => handleDeleteBranch(session)}
+                      disabled={isWorktreeBusy}
+                      className="p-1 rounded hover:bg-[#f1f5f9] text-[#94a3b8] hover:text-[#ef4444] transition-colors disabled:opacity-40"
+                      title={`Delete branch & Git worktree (${session.worktree})`}
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>

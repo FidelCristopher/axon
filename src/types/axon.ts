@@ -15,6 +15,7 @@ export interface GraphEntity {
   name: string;
   type: EntityType;
   worktree: string;
+  worktreePath?: string;
   status: NodeStatus;
   statusMessage?: string;
   tokenUsed: number;
