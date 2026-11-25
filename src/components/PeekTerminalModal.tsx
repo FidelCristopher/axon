@@ -3,40 +3,51 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { useAxonStore } from '../store/axonStore';
+import type { GraphEntity } from '../types/axon';
 import { X, RotateCw, Image as ImageIcon } from 'lucide-react';
 
-export const PeekTerminalModal: React.FC = () => {
-  const {
-    entities,
-    selectedEntityId,
-    isTerminalModalOpen,
-    setIsTerminalModalOpen,
-  } = useAxonStore();
+function resolveEntityCwd(ent: GraphEntity | undefined): string {
+  if (!ent) return '/mnt/c/Users/Pongo';
+  if (ent.worktreePath) return ent.worktreePath;
+  const label = `${ent.name || ''} ${ent.worktree || ''}`.toLowerCase();
+  if (ent.worktree === 'feat/belajar-page') return '/mnt/c/Users/Pongo/AndroidStudioProjects/halohanzi-part1';
+  if (ent.worktree === 'feat/cerita-page') return '/mnt/c/Users/Pongo/AndroidStudioProjects/halohanzi-part2';
+  if (ent.worktree === 'feat/assets') return '/mnt/c/Users/Pongo/AndroidStudioProjects/halohanzi-assets';
+  if (ent.worktree === 'axon/main' || label.includes('axon')) return '/mnt/c/Users/Pongo/axon';
+  if (label.includes('matcha')) return '/mnt/c/Users/Pongo/matcha-showcase';
+  if (label.includes('chinese') || label.includes('hanzi')) return '/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning';
+  return '/mnt/c/Users/Pongo';
+}
 
+interface NativePiPtyPaneProps {
+  entity: GraphEntity;
+  isActiveVisible: boolean;
+  onMinimize: () => void;
+}
+
+/**
+ * Persistent Native Pi PTY Pane.
+ * Stays mounted in DOM even when minimized (X) or switching tabs so xterm.js & WebSocket
+ * NEVER disconnect, NEVER replay garbled ANSI diffs, and ALWAYS reopen in 0ms with full focus.
+ */
+const NativePiPtyPane: React.FC<NativePiPtyPaneProps> = ({
+  entity,
+  isActiveVisible,
+  onMinimize,
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isActiveRef = useRef(isActiveVisible);
+  isActiveRef.current = isActiveVisible;
 
   const [connStatus, setConnStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [restartNonce, setRestartNonce] = useState(0);
 
-  const entity = entities.find((e) => e.id === selectedEntityId);
-
-  const resolveCwd = useCallback((ent: typeof entity) => {
-    if (!ent) return '/mnt/c/Users/Pongo';
-    if (ent.worktreePath) return ent.worktreePath;
-    const label = `${ent.name || ''} ${ent.worktree || ''}`.toLowerCase();
-    if (ent.worktree === 'feat/belajar-page') return '/mnt/c/Users/Pongo/AndroidStudioProjects/halohanzi-part1';
-    if (ent.worktree === 'feat/cerita-page') return '/mnt/c/Users/Pongo/AndroidStudioProjects/halohanzi-part2';
-    if (ent.worktree === 'feat/assets') return '/mnt/c/Users/Pongo/AndroidStudioProjects/halohanzi-assets';
-    if (ent.worktree === 'axon/main' || label.includes('axon')) return '/mnt/c/Users/Pongo/axon';
-    if (label.includes('matcha')) return '/mnt/c/Users/Pongo/matcha-showcase';
-    if (label.includes('chinese') || label.includes('hanzi')) return '/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning';
-    return '/mnt/c/Users/Pongo';
-  }, []);
+  const cwdDisplay = resolveEntityCwd(entity);
 
   const sendPtyInput = useCallback((data: string) => {
     const ws = wsRef.current;
@@ -83,9 +94,9 @@ export const PeekTerminalModal: React.FC = () => {
     [sendPtyInput]
   );
 
-  // Mount real xterm.js terminal and connect directly to real Linux Pi PTY over WebSocket
+  // Mount xterm.js ONCE per entity (only re-runs on explicit Restart Pi)
   useEffect(() => {
-    if (!isTerminalModalOpen || !entity || !containerRef.current) return;
+    if (!containerRef.current) return;
 
     const container = containerRef.current;
     container.innerHTML = '';
@@ -95,7 +106,7 @@ export const PeekTerminalModal: React.FC = () => {
       cursorStyle: 'block',
       fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
       fontSize: 14,
-      lineHeight: 1.35,
+      lineHeight: 1.32,
       scrollback: 10000,
       allowProposedApi: true,
       theme: {
@@ -126,23 +137,40 @@ export const PeekTerminalModal: React.FC = () => {
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(container);
-    fitAddon.fit();
+    try {
+      fitAddon.fit();
+    } catch {
+      // container may be hidden initially
+    }
 
     termRef.current = term;
     fitRef.current = fitAddon;
 
-    const cwd = resolveCwd(entity);
+    const cwd = resolveEntityCwd(entity);
     const sessionLookup = entity.uuid || entity.id;
 
     let isDisposed = false;
     let reconnectTimer: number | null = null;
     let shouldRestartOnce = restartNonce > 0;
 
+    const syncSize = () => {
+      if (!isActiveRef.current) return;
+      try {
+        fitAddon.fit();
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN && term.cols > 10 && term.rows > 4) {
+          ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+        }
+      } catch {
+        // ignore resize race
+      }
+    };
+
     const connectWs = () => {
       if (isDisposed) return;
       setConnStatus('connecting');
-      const cols = term.cols || 120;
-      const rows = term.rows || 34;
+      const cols = Math.max(40, term.cols || 120);
+      const rows = Math.max(10, term.rows || 34);
 
       const wsUrl =
         `ws://127.0.0.1:1425/ws/pty?nodeId=${encodeURIComponent(entity.id)}` +
@@ -161,9 +189,8 @@ export const PeekTerminalModal: React.FC = () => {
           return;
         }
         setConnStatus('connected');
-        fitAddon.fit();
-        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
-        term.focus();
+        syncSize();
+        if (isActiveRef.current) term.focus();
       };
 
       let receivedFirstOutput = false;
@@ -207,7 +234,7 @@ export const PeekTerminalModal: React.FC = () => {
       }
     });
 
-    // Handle Ctrl+C copy when text is selected, and Ctrl+V / Ctrl+Shift+V for text + image paste
+    // Handle Ctrl+C copy when text is selected, and Ctrl+V for text + image paste
     term.attachCustomKeyEventHandler((ev) => {
       if (ev.type === 'keydown' && ev.ctrlKey && ev.key.toLowerCase() === 'c') {
         if (term.hasSelection()) {
@@ -218,28 +245,20 @@ export const PeekTerminalModal: React.FC = () => {
         return true; // pass Ctrl+C (\x03) to Pi
       }
       if (ev.type === 'keydown' && ev.ctrlKey && ev.key.toLowerCase() === 'v') {
-        // Let browser fire native paste event (captured below before xterm.js)
-        return false;
+        return false; // handled by capture-phase paste listener below
       }
       return true;
     });
 
-    // Keep PTY dimensions synced with modal window size
+    // Keep PTY dimensions synced whenever visible container resizes
     const resizeObserver = new ResizeObserver(() => {
-      try {
-        fitAddon.fit();
-        const ws = wsRef.current;
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
-        }
-      } catch {
-        // ignore resize race
-      }
+      syncSize();
     });
     resizeObserver.observe(container);
 
-    // Handle Ctrl+V paste in CAPTURE phase (runs before xterm.js hidden textarea!)
+    // Handle Ctrl+V paste in CAPTURE phase (only when THIS pane is actively visible!)
     const handlePaste = async (e: ClipboardEvent) => {
+      if (!isActiveRef.current) return;
       const items = e.clipboardData?.items;
       if (!items) return;
 
@@ -276,22 +295,46 @@ export const PeekTerminalModal: React.FC = () => {
       window.removeEventListener('paste', handlePaste, true);
       resizeObserver.disconnect();
       dataDisp.dispose();
-      // Closing WebSocket ONLY detaches this viewer; the real Pi PTY keeps running in background!
       wsRef.current?.close();
       wsRef.current = null;
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
     };
-  }, [isTerminalModalOpen, entity?.id, entity?.uuid, restartNonce, resolveCwd, uploadAndInjectImages]);
+  }, [entity.id, entity.uuid, restartNonce, uploadAndInjectImages]);
 
-  if (!isTerminalModalOpen || !entity) return null;
+  // Whenever this pane becomes visible again after minimize/reopen: refit + restore keyboard focus instantly!
+  useEffect(() => {
+    if (!isActiveVisible) return;
+    const raf = requestAnimationFrame(() => {
+      try {
+        fitRef.current?.fit();
+        const term = termRef.current;
+        const ws = wsRef.current;
+        if (term && ws && ws.readyState === WebSocket.OPEN && term.cols > 10 && term.rows > 4) {
+          ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+        }
+        term?.focus();
+      } catch {
+        // ignore
+      }
+    });
+    // Extra focus guard after CSS paint so typing is 100% guaranteed immediately on reopen
+    const focusTimer = window.setTimeout(() => {
+      termRef.current?.focus();
+    }, 60);
 
-  const cwdDisplay = resolveCwd(entity);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(focusTimer);
+    };
+  }, [isActiveVisible]);
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs p-3"
+      className={`fixed inset-0 z-50 items-center justify-center bg-black/65 backdrop-blur-xs p-3 ${
+        isActiveVisible ? 'flex' : 'hidden'
+      }`}
       onDragOver={(e) => {
         e.preventDefault();
         if (!isDraggingOver) setIsDraggingOver(true);
@@ -373,22 +416,68 @@ export const PeekTerminalModal: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setIsTerminalModalOpen(false)}
+              onClick={onMinimize}
               className="p-1 rounded hover:bg-[#18181b] text-[#737373] hover:text-[#ffffff] transition-colors"
-              title="Minimize terminal (Pi keeps running natively in background)"
+              title="Minimize terminal (stays live in memory with 0ms reopen)"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* 100% Native Pi CLI xterm.js Canvas */}
+        {/* Outer padded wrapper so inner xterm.js container has 0 padding -> exact FitAddon row height (zero bottom clipping!) */}
         <div
-          ref={containerRef}
+          className="flex-1 min-h-0 w-full bg-[#000000] px-2.5 pt-2 pb-3 overflow-hidden"
           onClick={() => termRef.current?.focus()}
-          className="flex-1 w-full h-full bg-[#000000] p-2 overflow-hidden"
-        />
+        >
+          <div ref={containerRef} className="w-full h-full" />
+        </div>
       </div>
     </div>
+  );
+};
+
+export const PeekTerminalModal: React.FC = () => {
+  const {
+    entities,
+    selectedEntityId,
+    isTerminalModalOpen,
+    setIsTerminalModalOpen,
+  } = useAxonStore();
+
+  // Keep opened terminal panes mounted in memory (up to 6) so minimize/reopen is 0ms & 100% glitch-free
+  const [mountedPanes, setMountedPanes] = useState<GraphEntity[]>([]);
+
+  const activeEntity = entities.find((e) => e.id === selectedEntityId);
+
+  useEffect(() => {
+    if (!isTerminalModalOpen || !activeEntity) return;
+    setMountedPanes((prev) => {
+      const exists = prev.some((p) => p.id === activeEntity.id);
+      if (exists) {
+        return prev.map((p) => (p.id === activeEntity.id ? activeEntity : p));
+      }
+      const next = [...prev, activeEntity];
+      return next.length > 6 ? next.slice(next.length - 6) : next;
+    });
+  }, [isTerminalModalOpen, activeEntity]);
+
+  const handleMinimize = useCallback(() => {
+    setIsTerminalModalOpen(false);
+  }, [setIsTerminalModalOpen]);
+
+  if (mountedPanes.length === 0) return null;
+
+  return (
+    <>
+      {mountedPanes.map((paneEntity) => (
+        <NativePiPtyPane
+          key={paneEntity.id}
+          entity={paneEntity}
+          isActiveVisible={Boolean(isTerminalModalOpen && selectedEntityId === paneEntity.id)}
+          onMinimize={handleMinimize}
+        />
+      ))}
+    </>
   );
 };
