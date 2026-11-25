@@ -2,7 +2,9 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const crypto = require("crypto");
 const { execFile, spawn } = require("child_process");
+const { attachPtyWebSocket, killPtySession, getActivePtyCount } = require("./ptyManager.cjs");
 const {
   createAgentSessionServices,
   createAgentSessionFromServices,
@@ -1142,6 +1144,42 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // 6c. Save pasted/dropped image from xterm.js to /tmp/pi-clipboard-*.png for native Pi auto-image-drop
+  if (url.pathname === "/api/pty/upload-image" && req.method === "POST") {
+    try {
+      const { base64 } = await readJsonBody(req);
+      const m = String(base64 || "").match(/^data:image\/([a-zA-Z0-9.+-]+);base64,(.+)$/);
+      if (!m) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Invalid image data URL" }));
+        return;
+      }
+      const ext = m[1].replace("jpeg", "jpg").replace(/[^a-z0-9]/gi, "") || "png";
+      const filePath = `/tmp/pi-clipboard-${crypto.randomUUID()}.${ext}`;
+      fs.writeFileSync(filePath, Buffer.from(m[2], "base64"));
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, path: filePath }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // 6d. Kill / Reset a Native Pi PTY Session
+  if (url.pathname === "/api/pty/kill" && req.method === "POST") {
+    try {
+      const { nodeId } = await readJsonBody(req);
+      const killed = killPtySession(nodeId);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, killed, activePtys: getActivePtyCount() }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
   // 7. Serve built Axon Studio production frontend (/dist) for standalone desktop launch
   const distDir = path.resolve(__dirname, "../dist");
   if (req.method === "GET" && fs.existsSync(distDir)) {
@@ -1171,8 +1209,10 @@ const server = http.createServer(async (req, res) => {
   res.end(JSON.stringify({ error: "Not found" }));
 });
 
+attachPtyWebSocket(server);
+
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`[Axon Pi Native Bridge] Online at http://127.0.0.1:${PORT}`);
+  console.log(`[Axon Pi Native Bridge] Online at http://127.0.0.1:${PORT} (Native Pi PTY WebSocket: /ws/pty)`);
   startTelegramBridge();
   // Pre-warm Pi services in background so first user prompt has near-zero startup latency
   const warmCwd = "/mnt/c/Users/Pongo/axon";
