@@ -256,27 +256,77 @@ namespace AxonStudio
             return (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
         }
 
+        static bool IsAxonWindowOpen()
+        {
+            try
+            {
+                foreach (var name in new[] { "chrome", "msedge" })
+                {
+                    foreach (var p in Process.GetProcessesByName(name))
+                    {
+                        try
+                        {
+                            if (!string.IsNullOrEmpty(p.MainWindowTitle) &&
+                                p.MainWindowTitle.IndexOf("Axon Studio", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                return true;
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        static void LogRpc(string msg)
+        {
+            try
+            {
+                string logDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "AxonStudio"
+                );
+                Directory.CreateDirectory(logDir);
+                File.AppendAllText(
+                    Path.Combine(logDir, "discord-rpc.log"),
+                    DateTime.Now.ToString("HH:mm:ss") + " " + msg + Environment.NewLine
+                );
+            }
+            catch { }
+        }
+
         static void RunDiscordPresenceLoop(Process appProc)
         {
             NamedPipeClientStream pipe = null;
             string lastKey = null;
             long startTs = NowUnixSeconds();
             int pid = Process.GetCurrentProcess().Id;
+            DateTime launchedAt = DateTime.UtcNow;
+            int closedTicks = 0;
+
+            LogRpc("Discord RPC loop started (ClientId=" + DiscordClientId + ")");
 
             try
             {
                 while (true)
                 {
-                    // Stop cleanly if the launched Axon Studio window was closed
-                    if (appProc != null)
+                    // Wait 12s grace period for Chrome --app window to appear, then exit only after window is actually closed
+                    if ((DateTime.UtcNow - launchedAt).TotalSeconds > 12)
                     {
-                        try
+                        if (!IsAxonWindowOpen())
                         {
-                            if (appProc.HasExited) break;
+                            closedTicks++;
+                            if (closedTicks >= 3)
+                            {
+                                LogRpc("Axon Studio window closed. Clearing Discord RPC.");
+                                break;
+                            }
                         }
-                        catch
+                        else
                         {
-                            break;
+                            closedTicks = 0;
                         }
                     }
 
@@ -288,6 +338,10 @@ namespace AxonStudio
                             pipe = null;
                         }
                         pipe = ConnectDiscordPipe();
+                        if (pipe != null && pipe.IsConnected)
+                        {
+                            LogRpc("Connected to Discord IPC pipe!");
+                        }
                         lastKey = null;
                     }
 
@@ -322,10 +376,13 @@ namespace AxonStudio
                             try
                             {
                                 WriteDiscordFrame(pipe, 1, payload);
+                                string reply = ReadDiscordFrame(pipe);
+                                LogRpc("SET_ACTIVITY (" + details + ") -> " + (reply != null ? reply.Substring(0, Math.Min(180, reply.Length)) : "null"));
                                 lastKey = currentKey;
                             }
-                            catch
+                            catch (Exception ex)
                             {
+                                LogRpc("IPC error: " + ex.Message);
                                 try { pipe.Dispose(); } catch { }
                                 pipe = null;
                                 lastKey = null;
@@ -333,7 +390,7 @@ namespace AxonStudio
                         }
                     }
 
-                    Thread.Sleep(2500);
+                    Thread.Sleep(2000);
                 }
             }
             finally
