@@ -47,11 +47,34 @@ export const EntitySidebarLeft: React.FC = () => {
   const { selectSessionTopology } = useAxonStore();
 
   const [sessions, setSessions] = useState<PiSessionItem[]>(() => {
+    const pinnedRaw = localStorage.getItem('axon_pinned_sessions');
+    const pinnedSet = new Set<string>(pinnedRaw ? JSON.parse(pinnedRaw) : []);
     return (initialPiSessions as PiSessionItem[]).map((s) => ({
       ...s,
-      isPinned: false,
+      isPinned: pinnedSet.has(s.id),
     }));
   });
+
+  // Load real live Pi sessions directly from ~/.pi/agent/sessions/ via Axon Pi Bridge
+  useEffect(() => {
+    fetch('http://127.0.0.1:1425/api/sessions')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.sessions) && data.sessions.length > 0) {
+          const pinnedRaw = localStorage.getItem('axon_pinned_sessions');
+          const pinnedSet = new Set<string>(pinnedRaw ? JSON.parse(pinnedRaw) : []);
+          setSessions(
+            data.sessions.map((s: PiSessionItem) => ({
+              ...s,
+              isPinned: pinnedSet.has(s.id),
+            }))
+          );
+        }
+      })
+      .catch(() => {
+        // Fallback silently to initialPiSessions if bridge is offline
+      });
+  }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSessionFile, setSelectedSessionFile] = useState<string | null>(null);
@@ -105,15 +128,37 @@ export const EntitySidebarLeft: React.FC = () => {
     });
   };
 
-  const handleCreateNewSession = (e: React.FormEvent) => {
+  const handleCreateNewSession = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSessionTitle.trim()) return;
+
+    const title = newSessionTitle.trim();
+    setNewSessionTitle('');
+    setIsAddingNew(false);
+
+    try {
+      const res = await fetch('http://127.0.0.1:1425/api/sessions/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: title }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.session) {
+        const created: PiSessionItem = { ...data.session, isPinned: false };
+        setSessions((prev) => [created, ...prev]);
+        setSelectedSessionFile(created.id);
+        selectSessionTopology(created);
+        return;
+      }
+    } catch {
+      // fallback to local creation if bridge unreachable
+    }
 
     const newId = `session-${Date.now()}`;
     const newSession: PiSessionItem = {
       id: newId,
       fileName: `${newId}.jsonl`,
-      name: newSessionTitle.trim(),
+      name: title,
       category: 'Global / Home',
       role: '',
       tokens: 0,
@@ -124,14 +169,15 @@ export const EntitySidebarLeft: React.FC = () => {
 
     setSessions((prev) => [newSession, ...prev]);
     setSelectedSessionFile(newId);
-    setNewSessionTitle('');
-    setIsAddingNew(false);
   };
 
   const handleTogglePin = (session: PiSessionItem) => {
-    setSessions((prev) =>
-      prev.map((s) => (s.id === session.id ? { ...s, isPinned: !s.isPinned } : s))
-    );
+    setSessions((prev) => {
+      const next = prev.map((s) => (s.id === session.id ? { ...s, isPinned: !s.isPinned } : s));
+      const pinnedIds = next.filter((s) => s.isPinned).map((s) => s.id);
+      localStorage.setItem('axon_pinned_sessions', JSON.stringify(pinnedIds));
+      return next;
+    });
     setContextMenu((prev) => ({ ...prev, visible: false }));
   };
 
@@ -141,22 +187,52 @@ export const EntitySidebarLeft: React.FC = () => {
     setContextMenu((prev) => ({ ...prev, visible: false }));
   };
 
-  const handleSaveRename = (sessionId: string) => {
-    if (!editingTitle.trim()) {
+  const handleSaveRename = async (sessionId: string) => {
+    const trimmed = editingTitle.trim();
+    if (!trimmed) {
       setEditingSessionId(null);
       return;
     }
+    const target = sessions.find((s) => s.id === sessionId);
     setSessions((prev) =>
-      prev.map((s) => (s.id === sessionId ? { ...s, name: editingTitle.trim() } : s))
+      prev.map((s) => (s.id === sessionId ? { ...s, name: trimmed } : s))
     );
     setEditingSessionId(null);
+
+    try {
+      await fetch('http://127.0.0.1:1425/api/sessions/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: sessionId,
+          fileName: target?.fileName,
+          name: trimmed,
+        }),
+      });
+    } catch {
+      // ignore if offline
+    }
   };
 
-  const handleDeleteSession = (sessionId: string) => {
+  const handleDeleteSession = async (sessionId: string) => {
+    const target = sessions.find((s) => s.id === sessionId);
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));
     setContextMenu((prev) => ({ ...prev, visible: false }));
     if (selectedSessionFile === sessionId) {
-      setSelectedSessionFile(sessions[0]?.id || '');
+      setSelectedSessionFile(null);
+    }
+
+    try {
+      await fetch('http://127.0.0.1:1425/api/sessions/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: sessionId,
+          fileName: target?.fileName,
+        }),
+      });
+    } catch {
+      // ignore if offline
     }
   };
 

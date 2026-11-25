@@ -516,6 +516,233 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // 2b. Live Pi Sessions Catalog (reads ~/.pi/agent/sessions/--home-fidel--/*.jsonl directly)
+  if (url.pathname === "/api/sessions" && req.method === "GET") {
+    try {
+      if (!fs.existsSync(SESSIONS_DIR)) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ sessions: [] }));
+        return;
+      }
+
+      const files = fs.readdirSync(SESSIONS_DIR).filter((f) => f.endsWith(".jsonl"));
+      const list = [];
+
+      for (const fileName of files) {
+        try {
+          const fullPath = path.join(SESSIONS_DIR, fileName);
+          const stat = fs.statSync(fullPath);
+          const fd = fs.openSync(fullPath, "r");
+
+          // Read first 4KB for header & first user message
+          const headLen = Math.min(stat.size, 4096);
+          const headBuf = Buffer.alloc(headLen);
+          fs.readSync(fd, headBuf, 0, headLen, 0);
+          const headStr = headBuf.toString("utf-8");
+
+          // Also read last 4KB in case session_info rename was appended at the end
+          let tailStr = "";
+          if (stat.size > 4096) {
+            const tailLen = Math.min(stat.size, 4096);
+            const tailBuf = Buffer.alloc(tailLen);
+            fs.readSync(fd, tailBuf, 0, tailLen, stat.size - tailLen);
+            tailStr = tailBuf.toString("utf-8");
+          }
+          fs.closeSync(fd);
+
+          let name = "";
+          let category = "Global / Home";
+          let firstUserText = "";
+
+          const scanLines = (str) => {
+            for (const line of str.split("\n")) {
+              if (!line.trim().startsWith("{")) continue;
+              try {
+                const obj = JSON.parse(line);
+                if (obj.type === "session" && obj.cwd) {
+                  const c = String(obj.cwd);
+                  if (c.includes("halohanzi-part1")) category = "HaloHanzi Part 1";
+                  else if (c.includes("halohanzi-part2")) category = "HaloHanzi Part 2";
+                  else if (c.includes("halohanzi-assets")) category = "HaloHanzi Assets";
+                  else if (c.includes("matcha-showcase")) category = "Matcha Showcase";
+                  else if (c.includes("/axon")) category = "Axon Studio";
+                  else if (c.includes("ChineseLearning")) category = "ChineseLearning";
+                  else category = path.basename(c) || "Global / Home";
+                }
+                if (obj.type === "session_info" && obj.name) {
+                  name = String(obj.name).trim();
+                }
+                if (!firstUserText && obj.type === "message" && obj.message?.role === "user") {
+                  if (typeof obj.message.content === "string") {
+                    firstUserText = obj.message.content.trim();
+                  } else if (Array.isArray(obj.message.content)) {
+                    const tb = obj.message.content.find((b) => b.type === "text" && b.text);
+                    if (tb) firstUserText = String(tb.text).trim();
+                  }
+                }
+              } catch {
+                // ignore partial line at buffer boundary
+              }
+            }
+          };
+
+          scanLines(headStr);
+          if (tailStr) scanLines(tailStr);
+
+          const displayName =
+            name ||
+            (firstUserText ? firstUserText.replace(/\s+/g, " ").slice(0, 46) : fileName.replace(".jsonl", ""));
+
+          list.push({
+            id: fileName.replace(/\.jsonl$/, ""),
+            fileName,
+            name: displayName,
+            category,
+            role: "",
+            tokens: 0,
+            size: stat.size,
+            updatedAt: stat.mtimeMs,
+          });
+        } catch {
+          // skip unreadable file
+        }
+      }
+
+      list.sort((a, b) => b.updatedAt - a.updatedAt);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ sessions: list }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: err.message, sessions: [] }));
+    }
+    return;
+  }
+
+  // 2c. Permanently Create New Real Pi Session (.jsonl)
+  if (url.pathname === "/api/sessions/create" && req.method === "POST") {
+    try {
+      const { name, cwd } = await readJsonBody(req);
+      if (!name || !String(name).trim()) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Session name is required" }));
+        return;
+      }
+      fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+      const now = new Date();
+      const isoSafe = now.toISOString().replace(/[:.]/g, "-");
+      const randId = Math.random().toString(16).slice(2, 10) + "-" + Date.now().toString(16);
+      const fileName = `${isoSafe}_${randId}.jsonl`;
+      const fullPath = path.join(SESSIONS_DIR, fileName);
+      const sessionCwd = cwd || "/mnt/c/Users/Pongo/axon";
+
+      const headerLine = JSON.stringify({
+        type: "session",
+        version: 3,
+        id: randId,
+        timestamp: now.toISOString(),
+        cwd: sessionCwd,
+      });
+      const infoLine = JSON.stringify({
+        type: "session_info",
+        id: `info-${Date.now().toString(16)}`,
+        timestamp: now.toISOString(),
+        name: String(name).trim(),
+      });
+
+      fs.writeFileSync(fullPath, `${headerLine}\n${infoLine}\n`, "utf-8");
+      console.log(`[Pi Bridge] Created real Pi session: ${fileName} ("${name.trim()}")`);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          success: true,
+          session: {
+            id: fileName.replace(/\.jsonl$/, ""),
+            fileName,
+            name: String(name).trim(),
+            category: path.basename(sessionCwd) || "Global / Home",
+            role: "",
+            tokens: 0,
+            size: fs.statSync(fullPath).size,
+            updatedAt: Date.now(),
+          },
+        })
+      );
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // 2d. Permanently Rename Real Pi Session (.jsonl)
+  if (url.pathname === "/api/sessions/rename" && req.method === "POST") {
+    try {
+      const { fileName, id, name } = await readJsonBody(req);
+      if (!name || !String(name).trim()) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "New name is required" }));
+        return;
+      }
+      const safeBase = path.basename(String(fileName || `${id}.jsonl`));
+      const targetPath = safeBase.endsWith(".jsonl")
+        ? path.join(SESSIONS_DIR, safeBase)
+        : findSessionFile(id || safeBase);
+
+      if (!targetPath || !fs.existsSync(targetPath) || !path.resolve(targetPath).startsWith(path.resolve(SESSIONS_DIR))) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Session file not found on disk" }));
+        return;
+      }
+
+      const infoLine = JSON.stringify({
+        type: "session_info",
+        id: `rename-${Date.now().toString(16)}`,
+        timestamp: new Date().toISOString(),
+        name: String(name).trim(),
+      });
+      fs.appendFileSync(targetPath, `\n${infoLine}\n`, "utf-8");
+      console.log(`[Pi Bridge] Renamed Pi session ${path.basename(targetPath)} -> "${name.trim()}"`);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, fileName: path.basename(targetPath), name: String(name).trim() }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // 2e. Permanently Delete Real Pi Session (.jsonl)
+  if (url.pathname === "/api/sessions/delete" && req.method === "POST") {
+    try {
+      const { fileName, id } = await readJsonBody(req);
+      const safeBase = path.basename(String(fileName || `${id}.jsonl`));
+      const targetPath = safeBase.endsWith(".jsonl")
+        ? path.join(SESSIONS_DIR, safeBase)
+        : findSessionFile(id || safeBase);
+
+      if (!targetPath || !fs.existsSync(targetPath) || !path.resolve(targetPath).startsWith(path.resolve(SESSIONS_DIR))) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Session file not found on disk" }));
+        return;
+      }
+
+      fs.unlinkSync(targetPath);
+      const baseId = path.basename(targetPath, ".jsonl");
+      for (const [k] of activeSessions.entries()) {
+        if (k.includes(baseId) || baseId.includes(k)) {
+          activeSessions.delete(k);
+        }
+      }
+      console.log(`[Pi Bridge] Permanently deleted Pi session file: ${path.basename(targetPath)}`);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, deletedFile: path.basename(targetPath) }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
   // 3. Real Pi Session History (.jsonl) Reader
   if (url.pathname === "/api/session-history" && req.method === "GET") {
     try {
