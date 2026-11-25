@@ -13,6 +13,7 @@ const PORT = 1425;
 const SESSIONS_DIR = "/home/fidel/.pi/agent/sessions/--home-fidel--";
 const activeSessions = new Map();
 const servicesCache = new Map();
+const nodeRuntimeState = new Map(); // Tracks live background execution per node for seamless minimize/reopen
 const sseClients = new Set();
 
 // ============================================================================
@@ -382,9 +383,24 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
   const meta = { nodeId, sessionFile: resolvedSessionFile, cwd: safeCwd };
 
   session.subscribe((event) => {
+    const rt = nodeRuntimeState.get(nodeId) || {
+      isRunning: false,
+      phase: "idle",
+      activeTool: "",
+      activeToolDetail: "",
+      liveText: "",
+      liveTools: [],
+      sessionFile: resolvedSessionFile,
+      cwd: safeCwd,
+    };
+
     if (event.type === "message_update") {
       const assistantEvent = event.assistantMessageEvent;
       if (assistantEvent && assistantEvent.type === "text_delta") {
+        rt.isRunning = true;
+        rt.phase = "streaming";
+        rt.liveText += assistantEvent.delta || "";
+        nodeRuntimeState.set(nodeId, rt);
         broadcastEvent("text_delta", {
           ...meta,
           delta: assistantEvent.delta,
@@ -394,6 +410,9 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
           pending.buffer += assistantEvent.delta || "";
         }
       } else if (assistantEvent && assistantEvent.type === "thinking_delta") {
+        rt.isRunning = true;
+        rt.phase = "thinking";
+        nodeRuntimeState.set(nodeId, rt);
         broadcastEvent("thinking_delta", {
           ...meta,
           delta: assistantEvent.delta,
@@ -403,6 +422,11 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
       if (event.message && event.message.stopReason === "error") {
         const errMsg = event.message.errorMessage || "Model returned an error";
         console.error(`[Pi Bridge] [${nodeId}] Model error:`, errMsg);
+        rt.isRunning = false;
+        rt.phase = "idle";
+        rt.activeTool = "";
+        rt.activeToolDetail = "";
+        nodeRuntimeState.set(nodeId, rt);
         broadcastEvent("agent_error", {
           ...meta,
           error: errMsg,
@@ -414,23 +438,59 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
         }
       }
     } else if (event.type === "tool_execution_start") {
+      const detail =
+        event.args?.command ||
+        event.args?.path ||
+        event.args?.query ||
+        (event.args ? JSON.stringify(event.args).slice(0, 90) : "");
+      rt.isRunning = true;
+      rt.phase = "tool";
+      rt.activeTool = event.toolName || "tool";
+      rt.activeToolDetail = String(detail).slice(0, 110);
+      rt.liveTools.push({ type: "call", name: event.toolName, args: event.args });
+      nodeRuntimeState.set(nodeId, rt);
       broadcastEvent("tool_start", {
         ...meta,
         tool: event.toolName,
         args: event.args,
       });
     } else if (event.type === "tool_execution_end") {
+      if (rt.liveTools.length > 0) {
+        rt.liveTools[rt.liveTools.length - 1].isError = event.isError;
+      }
+      nodeRuntimeState.set(nodeId, rt);
       broadcastEvent("tool_end", {
         ...meta,
         tool: event.toolName,
         isError: event.isError,
       });
     } else if (event.type === "agent_start") {
+      nodeRuntimeState.set(nodeId, {
+        isRunning: true,
+        phase: "working",
+        activeTool: "",
+        activeToolDetail: "",
+        liveText: "",
+        liveTools: [],
+        sessionFile: resolvedSessionFile,
+        cwd: safeCwd,
+        startedAt: Date.now(),
+      });
       broadcastEvent("agent_start", {
         ...meta,
         model: session.model ? `${session.model.provider}/${session.model.id}` : undefined,
       });
     } else if (event.type === "agent_end") {
+      nodeRuntimeState.set(nodeId, {
+        isRunning: false,
+        phase: "idle",
+        activeTool: "",
+        activeToolDetail: "",
+        liveText: "",
+        liveTools: [],
+        sessionFile: resolvedSessionFile,
+        cwd: safeCwd,
+      });
       const usage = session.messages[session.messages.length - 1]?.usage || {};
       broadcastEvent("agent_end", {
         ...meta,
@@ -743,14 +803,31 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 3. Real Pi Session History (.jsonl) Reader
+  // 3. Real Pi Session History (.jsonl) Reader + Live Background Runtime State
   if (url.pathname === "/api/session-history" && req.method === "GET") {
     try {
       const lookupId = url.searchParams.get("id") || "";
+      const nodeIdParam = url.searchParams.get("nodeId") || "";
       const filePath = findSessionFile(lookupId);
+      const baseFile = filePath ? path.basename(filePath) : "";
+
+      // Find any active background runtime state for this node or session file
+      let runtimeState = nodeRuntimeState.get(nodeIdParam) || null;
+      if (!runtimeState && (lookupId || baseFile)) {
+        for (const [, st] of nodeRuntimeState.entries()) {
+          if (
+            (baseFile && st.sessionFile === baseFile) ||
+            (lookupId && st.sessionFile && st.sessionFile.includes(lookupId))
+          ) {
+            runtimeState = st;
+            break;
+          }
+        }
+      }
+
       if (!filePath) {
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ found: false, messages: [] }));
+        res.end(JSON.stringify({ found: false, messages: [], runtimeState }));
         return;
       }
       const messages = parseSessionHistory(filePath);
@@ -758,9 +835,10 @@ const server = http.createServer(async (req, res) => {
       res.end(
         JSON.stringify({
           found: true,
-          file: path.basename(filePath),
+          file: baseFile,
           totalMessages: messages.length,
           messages,
+          runtimeState,
         })
       );
     } catch (err) {
@@ -861,6 +939,14 @@ const server = http.createServer(async (req, res) => {
         if (typeof session.abort === "function") {
           await session.abort();
         }
+      }
+      if (nodeId && nodeRuntimeState.has(nodeId)) {
+        const rt = nodeRuntimeState.get(nodeId);
+        rt.isRunning = false;
+        rt.phase = "idle";
+        rt.activeTool = "";
+        rt.activeToolDetail = "";
+        nodeRuntimeState.set(nodeId, rt);
       }
       broadcastEvent("agent_aborted", { nodeId });
       res.writeHead(200, { "Content-Type": "application/json" });

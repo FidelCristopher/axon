@@ -434,16 +434,43 @@ export const PeekTerminalModal: React.FC = () => {
 
     const loadHistory = async () => {
       try {
-        let res = await fetch(`http://127.0.0.1:1425/api/session-history?id=${encodeURIComponent(targetLookup)}`).catch(() => null);
+        let res = await fetch(
+          `http://127.0.0.1:1425/api/session-history?id=${encodeURIComponent(targetLookup)}&nodeId=${encodeURIComponent(entity.id)}`
+        ).catch(() => null);
         if (!res || !res.ok) {
           res = await fetch(`/api/session-history?id=${encodeURIComponent(targetLookup)}`);
         }
         if (!res.ok) throw new Error('Session history not found');
         const data = await res.json();
-        if (data && Array.isArray(data.messages)) {
-          setChatMessages(data.messages);
+        const baseMessages: ChatMessageItem[] = Array.isArray(data?.messages) ? [...data.messages] : [];
+        const rt = data?.runtimeState;
+
+        if (rt && rt.isRunning) {
+          // Restore live in-flight background execution seamlessly on reopen
+          if (rt.liveText || (Array.isArray(rt.liveTools) && rt.liveTools.length > 0)) {
+            baseMessages.push({
+              id: `live-restored-${rt.startedAt || Date.now()}`,
+              role: 'assistant',
+              text: rt.liveText || '',
+              tools: Array.isArray(rt.liveTools) ? rt.liveTools : [],
+              timestamp: rt.startedAt || Date.now(),
+            });
+          }
+          setChatMessages(baseMessages);
+          setIsSending(true);
+          setAgentPhase(rt.phase || 'working');
+          setActiveToolName(rt.activeTool || '');
+          setActiveToolDetail(rt.activeToolDetail || '');
+          updateEntityStatus(entity.id, 'WORKING', 'Running in background...');
         } else {
-          setChatMessages([]);
+          setChatMessages(baseMessages);
+          setIsSending(false);
+          setAgentPhase('idle');
+          setActiveToolName('');
+          setActiveToolDetail('');
+          if (entity.status === 'WORKING') {
+            updateEntityStatus(entity.id, 'IDLE', 'Task completed in background');
+          }
         }
       } catch {
         setChatMessages([]);
