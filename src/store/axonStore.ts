@@ -301,7 +301,7 @@ export const useAxonStore = create<AxonState>((set, get) => {
             name: session.name,
             type: (session.role as any) || 'dev',
             worktree: session.category === 'Global' ? 'main' : session.category || 'main',
-            worktreePath: session.cwd || '/home/fidel',
+            worktreePath: session.cwd || '/mnt/c/Users/Pongo',
             status: 'IDLE',
             statusMessage: 'Session entity ready (Zero-Idle)',
             tokenUsed: session.tokens || 15000,

@@ -777,7 +777,8 @@ const server = http.createServer(async (req, res) => {
       const randId = Math.random().toString(16).slice(2, 10) + "-" + Date.now().toString(16);
       const fileName = `${isoSafe}_${randId}.jsonl`;
       const fullPath = path.join(SESSIONS_DIR, fileName);
-      const sessionCwd = cwd || "/mnt/c/Users/Pongo/axon";
+      const rawCwd = cwd ? String(cwd).trim() : "";
+      const sessionCwd = rawCwd ? normalizeUserPath(rawCwd) : "/mnt/c/Users/Pongo";
 
       const headerLine = JSON.stringify({
         type: "session",

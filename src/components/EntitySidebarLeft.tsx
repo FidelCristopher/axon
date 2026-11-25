@@ -81,6 +81,7 @@ export const EntitySidebarLeft: React.FC = () => {
   const [selectedSessionFile, setSelectedSessionFile] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newSessionTitle, setNewSessionTitle] = useState('');
+  const [newSessionCwd, setNewSessionCwd] = useState('C:\\Users\\Pongo');
 
   // In-line Renaming State
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -134,6 +135,7 @@ export const EntitySidebarLeft: React.FC = () => {
     if (!newSessionTitle.trim()) return;
 
     const title = newSessionTitle.trim();
+    const cwdInput = newSessionCwd.trim() || 'C:\\Users\\Pongo';
     setNewSessionTitle('');
     setIsAddingNew(false);
 
@@ -141,7 +143,7 @@ export const EntitySidebarLeft: React.FC = () => {
       const res = await fetch('http://127.0.0.1:1425/api/sessions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: title }),
+        body: JSON.stringify({ name: title, cwd: cwdInput }),
       });
       const data = await res.json();
       if (res.ok && data.success && data.session) {
@@ -265,31 +267,40 @@ export const EntitySidebarLeft: React.FC = () => {
         </button>
       </div>
 
-      {/* Inline Input to Create New Session */}
+      {/* Inline Input to Create New Session (Name + Windows/WSL Folder Path) */}
       {isAddingNew && (
-        <form onSubmit={handleCreateNewSession} className="p-2.5 bg-[#ffffff] border-b border-[#e2e8f0] flex items-center space-x-1.5 shadow-xs">
+        <form onSubmit={handleCreateNewSession} className="p-2.5 bg-[#ffffff] border-b border-[#e2e8f0] space-y-1.5 shadow-xs">
+          <div className="flex items-center space-x-1.5">
+            <input
+              type="text"
+              placeholder="New session name..."
+              value={newSessionTitle}
+              onChange={(e) => setNewSessionTitle(e.target.value)}
+              className="flex-1 bg-[#f1f5f9] border border-[#cbd5e1] rounded-md text-xs px-2.5 py-1 text-[#0f172a] placeholder-[#94a3b8] focus:outline-none focus:border-[#e11d48] font-mono"
+              autoFocus
+            />
+            <button
+              type="submit"
+              disabled={!newSessionTitle.trim()}
+              className="p-1 rounded-md bg-[#e11d48] text-white disabled:opacity-40"
+            >
+              <Check className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsAddingNew(false)}
+              className="p-1 rounded-md hover:bg-[#f1f5f9] text-[#64748b]"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
           <input
             type="text"
-            placeholder="New session name..."
-            value={newSessionTitle}
-            onChange={(e) => setNewSessionTitle(e.target.value)}
-            className="flex-1 bg-[#f1f5f9] border border-[#cbd5e1] rounded-md text-xs px-2.5 py-1 text-[#0f172a] placeholder-[#94a3b8] focus:outline-none focus:border-[#e11d48] font-mono"
-            autoFocus
+            placeholder="Folder path (e.g. C:\Users\Pongo\my-project)"
+            value={newSessionCwd}
+            onChange={(e) => setNewSessionCwd(e.target.value)}
+            className="w-full bg-[#f8fafc] border border-[#e2e8f0] rounded-md text-[11px] px-2.5 py-1 text-[#475569] placeholder-[#94a3b8] focus:outline-none focus:border-[#e11d48] font-mono"
           />
-          <button
-            type="submit"
-            disabled={!newSessionTitle.trim()}
-            className="p-1 rounded-md bg-[#e11d48] text-white disabled:opacity-40"
-          >
-            <Check className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsAddingNew(false)}
-            className="p-1 rounded-md hover:bg-[#f1f5f9] text-[#64748b]"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
         </form>
       )}
 
