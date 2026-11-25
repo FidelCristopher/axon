@@ -16,7 +16,7 @@ namespace AxonStudio
         private const string PresenceUrl = "http://127.0.0.1:1425/api/presence";
         private const string AppUrl = "http://127.0.0.1:1425/";
         private const string DiscordClientId = "1575137660429795348";
-        private const string DiscordLargeImageKey = "axon-logo";
+        private const string DiscordLargeImageKey = "axon-app-icon";
 
         [STAThread]
         static void Main()
