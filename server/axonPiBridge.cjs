@@ -575,6 +575,102 @@ function readJsonBody(req) {
   });
 }
 
+const sessionMetaCache = new Map(); // fileName -> { mtimeMs, size, name, category }
+
+function extractSessionMeta(fullPath, fileName, stat) {
+  const cached = sessionMetaCache.get(fileName);
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+    return cached;
+  }
+
+  let name = "";
+  let category = "Global / Home";
+  let firstUserText = "";
+
+  try {
+    const raw = fs.readFileSync(fullPath, "utf-8");
+
+    // 1. Parse first line for cwd/category
+    const firstNl = raw.indexOf("\n");
+    const firstLine = firstNl === -1 ? raw : raw.slice(0, firstNl);
+    if (firstLine.trim().startsWith("{")) {
+      try {
+        const hdr = JSON.parse(firstLine);
+        if (hdr.type === "session" && hdr.cwd) {
+          const c = String(hdr.cwd);
+          if (c.includes("halohanzi-part1")) category = "HaloHanzi Part 1";
+          else if (c.includes("halohanzi-part2")) category = "HaloHanzi Part 2";
+          else if (c.includes("halohanzi-assets")) category = "HaloHanzi Assets";
+          else if (c.includes("matcha-showcase")) category = "Matcha Showcase";
+          else if (c.includes("/axon")) category = "Axon Studio";
+          else if (c.includes("ChineseLearning")) category = "ChineseLearning";
+          else if (c === "/home/fidel" || c.endsWith("/fidel")) category = "Global / Home";
+          else category = path.basename(c) || "Global / Home";
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // 2. Find the LATEST `"type":"session_info"` entry anywhere in the file (exact Pi rename behavior)
+    let searchIdx = raw.lastIndexOf('"type":"session_info"');
+    if (searchIdx === -1) searchIdx = raw.lastIndexOf('"type": "session_info"');
+    if (searchIdx !== -1) {
+      const lineStart = raw.lastIndexOf("\n", searchIdx) + 1;
+      let lineEnd = raw.indexOf("\n", searchIdx);
+      if (lineEnd === -1) lineEnd = raw.length;
+      try {
+        const infoObj = JSON.parse(raw.slice(lineStart, lineEnd));
+        if (infoObj && infoObj.name) {
+          name = String(infoObj.name).trim();
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // 3. Fallback to first user text message if no session_info name exists
+    if (!name) {
+      const lines = raw.slice(0, 65536).split("\n");
+      for (const line of lines) {
+        if (!line.includes('"role":"user"') && !line.includes('"role": "user"')) continue;
+        try {
+          const obj = JSON.parse(line);
+          if (obj.type === "message" && obj.message?.role === "user") {
+            if (typeof obj.message.content === "string") {
+              firstUserText = obj.message.content.trim();
+            } else if (Array.isArray(obj.message.content)) {
+              const tb = obj.message.content.find((b) => b.type === "text" && b.text);
+              if (tb) firstUserText = String(tb.text).trim();
+            }
+            if (firstUserText) break;
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+  } catch {
+    // ignore unreadable file
+  }
+
+  const displayName =
+    name ||
+    (firstUserText
+      ? firstUserText.replace(/\/tmp\/pi-clipboard-\S+\s*/g, "").replace(/\s+/g, " ").trim().slice(0, 48)
+      : "") ||
+    fileName.replace(".jsonl", "");
+
+  const meta = {
+    mtimeMs: stat.mtimeMs,
+    size: stat.size,
+    name: displayName,
+    category,
+  };
+  sessionMetaCache.set(fileName, meta);
+  return meta;
+}
+
 const server = http.createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -636,72 +732,12 @@ const server = http.createServer(async (req, res) => {
         try {
           const fullPath = path.join(SESSIONS_DIR, fileName);
           const stat = fs.statSync(fullPath);
-          const fd = fs.openSync(fullPath, "r");
-
-          // Read first 4KB for header & first user message
-          const headLen = Math.min(stat.size, 4096);
-          const headBuf = Buffer.alloc(headLen);
-          fs.readSync(fd, headBuf, 0, headLen, 0);
-          const headStr = headBuf.toString("utf-8");
-
-          // Also read last 4KB in case session_info rename was appended at the end
-          let tailStr = "";
-          if (stat.size > 4096) {
-            const tailLen = Math.min(stat.size, 4096);
-            const tailBuf = Buffer.alloc(tailLen);
-            fs.readSync(fd, tailBuf, 0, tailLen, stat.size - tailLen);
-            tailStr = tailBuf.toString("utf-8");
-          }
-          fs.closeSync(fd);
-
-          let name = "";
-          let category = "Global / Home";
-          let firstUserText = "";
-
-          const scanLines = (str) => {
-            for (const line of str.split("\n")) {
-              if (!line.trim().startsWith("{")) continue;
-              try {
-                const obj = JSON.parse(line);
-                if (obj.type === "session" && obj.cwd) {
-                  const c = String(obj.cwd);
-                  if (c.includes("halohanzi-part1")) category = "HaloHanzi Part 1";
-                  else if (c.includes("halohanzi-part2")) category = "HaloHanzi Part 2";
-                  else if (c.includes("halohanzi-assets")) category = "HaloHanzi Assets";
-                  else if (c.includes("matcha-showcase")) category = "Matcha Showcase";
-                  else if (c.includes("/axon")) category = "Axon Studio";
-                  else if (c.includes("ChineseLearning")) category = "ChineseLearning";
-                  else category = path.basename(c) || "Global / Home";
-                }
-                if (obj.type === "session_info" && obj.name) {
-                  name = String(obj.name).trim();
-                }
-                if (!firstUserText && obj.type === "message" && obj.message?.role === "user") {
-                  if (typeof obj.message.content === "string") {
-                    firstUserText = obj.message.content.trim();
-                  } else if (Array.isArray(obj.message.content)) {
-                    const tb = obj.message.content.find((b) => b.type === "text" && b.text);
-                    if (tb) firstUserText = String(tb.text).trim();
-                  }
-                }
-              } catch {
-                // ignore partial line at buffer boundary
-              }
-            }
-          };
-
-          scanLines(headStr);
-          if (tailStr) scanLines(tailStr);
-
-          const displayName =
-            name ||
-            (firstUserText ? firstUserText.replace(/\s+/g, " ").slice(0, 46) : fileName.replace(".jsonl", ""));
-
+          const meta = extractSessionMeta(fullPath, fileName, stat);
           list.push({
             id: fileName.replace(/\.jsonl$/, ""),
             fileName,
-            name: displayName,
-            category,
+            name: meta.name,
+            category: meta.category,
             role: "",
             tokens: 0,
             size: stat.size,
