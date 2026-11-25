@@ -159,12 +159,202 @@ function formatWezTermText(text: string) {
   });
 }
 
+const WezTermToolBlock = React.memo(({ tool }: { tool: any }) => {
+  const [expanded, setExpanded] = useState(false);
+  const name = tool?.name || 'tool';
+  const args = tool?.args || {};
+  const output: string = typeof tool?.output === 'string' ? tool.output : '';
+  const isError = Boolean(tool?.isError);
+
+  const outputLines = output ? output.split('\n') : [];
+  const previewLimit = 8;
+  const hasMoreOutput = outputLines.length > previewLimit;
+  const displayedOutput = expanded ? output : outputLines.slice(0, previewLimit).join('\n');
+
+  const borderColor = isError ? 'border-[#ef4444]/60' : 'border-[#262626]';
+  const bgTint = isError ? 'bg-[#1a0a0a]' : 'bg-[#0b0e12]';
+
+  // 1. BASH tool — WezTerm multi-line command + stdout block
+  if (name === 'bash') {
+    const cmd = String(args.command || '').trim();
+    return (
+      <div className={`my-1.5 rounded border ${borderColor} ${bgTint} px-3 py-2 text-[13px] leading-[1.45]`}>
+        <div className="text-[#e5e5e5] whitespace-pre-wrap break-words font-semibold">
+          <span className="text-[#a3e635] mr-1.5">$</span>
+          {cmd || '(empty command)'}
+        </div>
+        {output && (
+          <div className="mt-1.5 pt-1.5 border-t border-[#1f2937] text-[#9ca3af] text-[12px] whitespace-pre-wrap break-words">
+            {displayedOutput}
+            {hasMoreOutput && (
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className="block mt-1 text-[11px] text-[#00ffff] hover:underline select-none"
+              >
+                {expanded
+                  ? '▲ Collapse output'
+                  : `▼ Show ${outputLines.length - previewLimit} more lines (${outputLines.length} total)`}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 2. EDIT tool — File path + authentic red (-) / green (+) code diff
+  if (name === 'edit') {
+    const filePath = String(args.path || '');
+    const edits: Array<{ oldText?: string; newText?: string }> = Array.isArray(args.edits) ? args.edits : [];
+    const maxDiffLines = expanded ? 120 : 12;
+
+    return (
+      <div className={`my-1.5 rounded border ${borderColor} ${bgTint} px-3 py-2 text-[12.5px] leading-[1.45]`}>
+        <div className="flex items-center justify-between">
+          <div className="truncate">
+            <span className="text-[#ffff00] font-bold">edit</span>{' '}
+            <span className="text-[#00ffff]">{filePath}</span>
+          </div>
+          {edits.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="text-[11px] text-[#737373] hover:text-[#ffffff] ml-2 shrink-0 select-none"
+            >
+              {expanded ? 'Collapse diff' : 'Expand diff'}
+            </button>
+          )}
+        </div>
+
+        {edits.length > 0 && (
+          <div className="mt-1.5 pt-1.5 border-t border-[#1f2937] space-y-1 text-[12px] overflow-x-auto">
+            {edits.map((ed, idx) => {
+              const oldLines = (ed.oldText || '').split('\n').slice(0, maxDiffLines);
+              const newLines = (ed.newText || '').split('\n').slice(0, maxDiffLines);
+              return (
+                <div key={idx} className="space-y-0.5">
+                  {oldLines.map((ln, i) => (
+                    <div key={`o-${i}`} className="bg-[#ef4444]/15 text-[#fca5a5] px-1.5 whitespace-pre">
+                      - {ln}
+                    </div>
+                  ))}
+                  {newLines.map((ln, i) => (
+                    <div key={`n-${i}`} className="bg-[#22c55e]/15 text-[#86efac] px-1.5 whitespace-pre">
+                      + {ln}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {output && (
+          <div className="mt-1 text-[11.5px] text-[#737373] truncate">{output.split('\n')[0]}</div>
+        )}
+      </div>
+    );
+  }
+
+  // 3. READ tool — File path + line range + code snippet preview
+  if (name === 'read') {
+    const filePath = String(args.path || '');
+    const range =
+      args.offset || args.limit
+        ? `:${args.offset || 1}-${(args.offset || 1) + (args.limit || 0)}`
+        : '';
+    return (
+      <div className={`my-1.5 rounded border ${borderColor} ${bgTint} px-3 py-1.5 text-[12.5px] leading-[1.45]`}>
+        <div className="flex items-center justify-between">
+          <div className="truncate">
+            <span className="text-[#00ffff] font-bold">read</span>{' '}
+            <span className="text-[#d4d4d4]">{filePath}</span>
+            {range && <span className="text-[#ffff00]">{range}</span>}
+          </div>
+          {output && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="text-[11px] text-[#737373] hover:text-[#00ffff] ml-2 shrink-0 select-none"
+            >
+              {expanded ? 'Hide code' : `Preview (${outputLines.length} lines)`}
+            </button>
+          )}
+        </div>
+        {output && expanded && (
+          <div className="mt-1.5 pt-1.5 border-t border-[#1f2937] text-[#9ca3af] text-[12px] whitespace-pre overflow-x-auto max-h-72 overflow-y-auto">
+            {output}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 4. WRITE tool — File path + code preview
+  if (name === 'write') {
+    const filePath = String(args.path || '');
+    const contentStr = String(args.content || '');
+    const contentLines = contentStr.split('\n');
+    return (
+      <div className={`my-1.5 rounded border ${borderColor} ${bgTint} px-3 py-1.5 text-[12.5px] leading-[1.45]`}>
+        <div className="flex items-center justify-between">
+          <div className="truncate">
+            <span className="text-[#a3e635] font-bold">write</span>{' '}
+            <span className="text-[#00ffff]">{filePath}</span>
+            <span className="text-[#737373] ml-2">({contentLines.length} lines)</span>
+          </div>
+          {contentStr && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="text-[11px] text-[#737373] hover:text-[#00ffff] ml-2 shrink-0 select-none"
+            >
+              {expanded ? 'Hide content' : 'Preview'}
+            </button>
+          )}
+        </div>
+        {contentStr && expanded && (
+          <div className="mt-1.5 pt-1.5 border-t border-[#1f2937] text-[#86efac] text-[12px] whitespace-pre overflow-x-auto max-h-72 overflow-y-auto">
+            {contentStr.slice(0, 4000)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 5. Fallback for any other tool
+  return (
+    <div className={`my-1 rounded border ${borderColor} ${bgTint} px-3 py-1.5 text-[12.5px]`}>
+      <div className="flex items-center space-x-1.5">
+        <span className="text-[#ff00ff] font-bold">$</span>
+        <span className="text-[#00ffff] font-semibold">{name}</span>
+        <span className="text-[#737373] truncate max-w-[620px]">
+          {Object.keys(args).length > 0 ? JSON.stringify(args).slice(0, 140) : ''}
+        </span>
+      </div>
+      {output && (
+        <div className="mt-1 text-[#9ca3af] text-[12px] whitespace-pre-wrap break-words">
+          {displayedOutput}
+        </div>
+      )}
+    </div>
+  );
+});
+
 const ChatMessageRow = React.memo(({ msg }: { msg: ChatMessageItem }) => {
   if (msg.role === 'system_notice') {
+    const txt = msg.text || '';
+    const isCompact = /compact/i.test(txt);
+    const isAbort = /abort/i.test(txt);
+    const isErr = /error|failed/i.test(txt);
+    const badge = isCompact ? '[COMPACT]' : isAbort ? '[ABORTED]' : isErr ? '[ERROR]' : '[SYSTEM]';
+    const color = isErr || isAbort ? 'text-[#f87171]' : 'text-[#ff79c6]';
+
     return (
       <div className="my-2.5 py-1 border-y border-[#262626] text-center select-none">
-        <span className="text-[#ff79c6] text-[12px] font-semibold">
-          [COMPACT] {msg.text}
+        <span className={`${color} text-[12px] font-semibold`}>
+          {badge} {txt}
         </span>
       </div>
     );
@@ -203,21 +393,11 @@ const ChatMessageRow = React.memo(({ msg }: { msg: ChatMessageItem }) => {
         </div>
       ) : (
         <div className="space-y-1 pl-1">
+          {/* Rich WezTerm Pi TUI Tool Blocks (bash command+stdout, edit diff, read code preview) */}
           {msg.tools && msg.tools.length > 0 && (
-            <div className="my-1.5 space-y-0.5">
+            <div className="my-1.5 space-y-1">
               {msg.tools.map((t: any, tIdx: number) => (
-                <div
-                  key={tIdx}
-                  className="text-[12.5px] text-[#a3a3a3] flex items-center space-x-1.5"
-                >
-                  <span className="text-[#ff00ff] font-bold">$</span>
-                  <span className="text-[#00ffff] font-semibold">
-                    {t.name || 'tool'}
-                  </span>
-                  <span className="text-[#737373] truncate max-w-[550px]">
-                    {t.args ? JSON.stringify(t.args).slice(0, 95) : t.output ? String(t.output).slice(0, 75) : ''}
-                  </span>
-                </div>
+                <WezTermToolBlock key={tIdx} tool={t} />
               ))}
             </div>
           )}
@@ -595,7 +775,11 @@ export const PeekTerminalModal: React.FC = () => {
               const tools = [...last.tools];
               const lastTool = tools[tools.length - 1];
               if (lastTool) {
-                tools[tools.length - 1] = { ...lastTool, isError: data.isError };
+                tools[tools.length - 1] = {
+                  ...lastTool,
+                  isError: data.isError,
+                  output: data.output || lastTool.output,
+                };
                 list[list.length - 1] = { ...last, tools };
               }
               return list;
@@ -1043,12 +1227,12 @@ export const PeekTerminalModal: React.FC = () => {
                   </span>
                   <span className="text-[#a3a3a3] truncate max-w-[600px]">
                     {agentPhase === 'thinking'
-                      ? 'Model sedang berpikir...'
+                      ? 'Thinking...'
                       : agentPhase === 'tool'
-                      ? activeToolDetail || `Menjalankan tool ${activeToolName}...`
+                      ? activeToolDetail || `Running ${activeToolName}...`
                       : agentPhase === 'streaming'
-                      ? 'Menulis respons...'
-                      : 'Menghubungi Pi engine (antigravity)...'}
+                      ? 'Streaming response...'
+                      : 'Working...'}
                   </span>
                   <span className="text-[11px] text-[#737373] border border-[#262626] rounded px-1.5 py-0.2 shrink-0">
                     Esc to stop

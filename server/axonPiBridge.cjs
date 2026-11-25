@@ -295,12 +295,36 @@ function parseSessionHistory(filePath) {
   const raw = fs.readFileSync(filePath, "utf-8");
   const lines = raw.split("\n").filter((l) => l.trim().length > 0);
   const messages = [];
+  const toolCallById = new Map();
 
   for (const line of lines) {
     try {
       const obj = JSON.parse(line);
       if (obj.type === "message" && obj.message) {
         const role = obj.message.role;
+
+        // Attach toolResult output back onto its matching toolCall block
+        if (role === "toolResult") {
+          const callId = obj.message.toolCallId;
+          const targetTool = callId ? toolCallById.get(callId) : null;
+          if (targetTool) {
+            let outText = "";
+            if (typeof obj.message.content === "string") {
+              outText = obj.message.content;
+            } else if (Array.isArray(obj.message.content)) {
+              outText = obj.message.content
+                .filter((b) => b.type === "text" && b.text)
+                .map((b) => b.text)
+                .join("\n");
+            }
+            if (outText) {
+              targetTool.output = outText.length > 2500 ? outText.slice(0, 2500) + "\n... [truncated]" : outText;
+            }
+            if (obj.message.isError) targetTool.isError = true;
+          }
+          continue;
+        }
+
         if (role !== "user" && role !== "assistant") continue;
 
         let textContent = "";
@@ -313,11 +337,14 @@ function parseSessionHistory(filePath) {
             if (block.type === "text" && block.text) {
               textContent += (textContent ? "\n" : "") + block.text;
             } else if (block.type === "toolCall") {
-              tools.push({
+              const tObj = {
                 type: "toolCall",
+                id: block.id,
                 name: block.name || "tool",
                 args: block.arguments || block.args || {},
-              });
+              };
+              tools.push(tObj);
+              if (block.id) toolCallById.set(block.id, tObj);
             }
           }
         }
@@ -455,14 +482,29 @@ async function getOrCreateSession(nodeId, cwd, sessionLookupId) {
         args: event.args,
       });
     } else if (event.type === "tool_execution_end") {
+      let outText = "";
+      if (typeof event.result === "string") {
+        outText = event.result;
+      } else if (event.result && Array.isArray(event.result.content)) {
+        outText = event.result.content
+          .filter((b) => b.type === "text" && b.text)
+          .map((b) => b.text)
+          .join("\n");
+      } else if (event.result && typeof event.result.text === "string") {
+        outText = event.result.text;
+      }
+      const trimmedOut = outText.length > 2500 ? outText.slice(0, 2500) + "\n... [truncated]" : outText;
+
       if (rt.liveTools.length > 0) {
         rt.liveTools[rt.liveTools.length - 1].isError = event.isError;
+        if (trimmedOut) rt.liveTools[rt.liveTools.length - 1].output = trimmedOut;
       }
       nodeRuntimeState.set(nodeId, rt);
       broadcastEvent("tool_end", {
         ...meta,
         tool: event.toolName,
         isError: event.isError,
+        output: trimmedOut,
       });
     } else if (event.type === "agent_start") {
       nodeRuntimeState.set(nodeId, {
@@ -1132,6 +1174,16 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`[Axon Pi Native Bridge] Online at http://127.0.0.1:${PORT}`);
   startTelegramBridge();
+  // Pre-warm Pi services in background so first user prompt has near-zero startup latency
+  const warmCwd = "/mnt/c/Users/Pongo/axon";
+  if (fs.existsSync(warmCwd) && !servicesCache.has(warmCwd)) {
+    createAgentSessionServices({ cwd: warmCwd })
+      .then((s) => {
+        servicesCache.set(warmCwd, s);
+        console.log("[Pi Bridge] Pre-warmed default Pi services (antigravity ready)");
+      })
+      .catch(() => {});
+  }
 });
 
 async function dispatchTelegramPrompt(chatId, nodeId, promptText, images = []) {
