@@ -587,16 +587,21 @@ function extractSessionMeta(fullPath, fileName, stat) {
   let category = "Global / Home";
   let cwd = "/home/fidel";
   let firstUserText = "";
+  let lastActivityMs = 0;
 
   try {
     const raw = fs.readFileSync(fullPath, "utf-8");
 
-    // 1. Parse first line for cwd/category
+    // 1. Parse first line for cwd/category & fallback header timestamp
     const firstNl = raw.indexOf("\n");
     const firstLine = firstNl === -1 ? raw : raw.slice(0, firstNl);
     if (firstLine.trim().startsWith("{")) {
       try {
         const hdr = JSON.parse(firstLine);
+        if (hdr.timestamp) {
+          const parsed = typeof hdr.timestamp === "number" ? hdr.timestamp : Date.parse(hdr.timestamp);
+          if (!Number.isNaN(parsed)) lastActivityMs = parsed;
+        }
         if (hdr.type === "session" && hdr.cwd) {
           const c = String(hdr.cwd);
           cwd = c;
@@ -608,6 +613,23 @@ function extractSessionMeta(fullPath, fileName, stat) {
           else if (c.includes("ChineseLearning")) category = "ChineseLearning";
           else if (c === "/home/fidel" || c.endsWith("/fidel")) category = "Global / Home";
           else category = path.basename(c) || "Global / Home";
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // 1b. Read real last activity timestamp from the last non-empty JSONL line
+    const trimmedRaw = raw.trimEnd();
+    const lastNl = trimmedRaw.lastIndexOf("\n");
+    const lastLine = lastNl === -1 ? trimmedRaw : trimmedRaw.slice(lastNl + 1);
+    if (lastLine.trim().startsWith("{")) {
+      try {
+        const tailObj = JSON.parse(lastLine);
+        const tsVal = tailObj.timestamp || tailObj.message?.timestamp;
+        if (tsVal) {
+          const parsed = typeof tsVal === "number" ? tsVal : Date.parse(tsVal);
+          if (!Number.isNaN(parsed) && parsed > 0) lastActivityMs = parsed;
         }
       } catch {
         // ignore
@@ -669,6 +691,7 @@ function extractSessionMeta(fullPath, fileName, stat) {
     name: displayName,
     category,
     cwd,
+    updatedAt: lastActivityMs || stat.mtimeMs,
   };
   sessionMetaCache.set(fileName, meta);
   return meta;
@@ -745,7 +768,7 @@ const server = http.createServer(async (req, res) => {
             role: "",
             tokens: 0,
             size: stat.size,
-            updatedAt: stat.mtimeMs,
+            updatedAt: meta.updatedAt,
           });
         } catch {
           // skip unreadable file
