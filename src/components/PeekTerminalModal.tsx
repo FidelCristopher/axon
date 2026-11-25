@@ -180,7 +180,7 @@ export const PeekTerminalModal: React.FC = () => {
       }
     });
 
-    // Handle Ctrl+C copy when text is selected, and Ctrl+V for text + image paste
+    // Handle Ctrl+C copy when text is selected, and Ctrl+V / Ctrl+Shift+V for text + image paste
     term.attachCustomKeyEventHandler((ev) => {
       if (ev.type === 'keydown' && ev.ctrlKey && ev.key.toLowerCase() === 'c') {
         if (term.hasSelection()) {
@@ -191,7 +191,7 @@ export const PeekTerminalModal: React.FC = () => {
         return true; // pass Ctrl+C (\x03) to Pi
       }
       if (ev.type === 'keydown' && ev.ctrlKey && ev.key.toLowerCase() === 'v') {
-        // Let native paste event fire so we can detect clipboard images vs text
+        // Let browser fire native paste event (captured below before xterm.js)
         return false;
       }
       return true;
@@ -210,7 +210,7 @@ export const PeekTerminalModal: React.FC = () => {
     });
     resizeObserver.observe(container);
 
-    // Handle Ctrl+V paste (both clipboard screenshots AND plain text)
+    // Handle Ctrl+V paste in CAPTURE phase (runs before xterm.js hidden textarea!)
     const handlePaste = async (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
       if (!items) return;
@@ -225,22 +225,24 @@ export const PeekTerminalModal: React.FC = () => {
 
       if (imageFiles.length > 0) {
         e.preventDefault();
+        e.stopImmediatePropagation();
         await uploadAndInjectImages(imageFiles);
         return;
       }
 
-      const text = e.clipboardData?.getData('text');
+      const text = e.clipboardData?.getData('text/plain') || e.clipboardData?.getData('text');
       if (text) {
         e.preventDefault();
+        e.stopImmediatePropagation();
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'input', data: text }));
         }
       }
     };
-    window.addEventListener('paste', handlePaste);
+    window.addEventListener('paste', handlePaste, true);
 
     return () => {
-      window.removeEventListener('paste', handlePaste);
+      window.removeEventListener('paste', handlePaste, true);
       resizeObserver.disconnect();
       dataDisp.dispose();
       // Closing WebSocket ONLY detaches this viewer; the real Pi PTY keeps running in background!
