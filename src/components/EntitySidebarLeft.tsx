@@ -84,6 +84,31 @@ export const EntitySidebarLeft: React.FC = () => {
   const [newSessionTitle, setNewSessionTitle] = useState('');
   const [newSessionCwd, setNewSessionCwd] = useState('C:\\Users\\Pongo');
 
+  // Sync active session (or Idling standby) to Discord Rich Presence via Axon Bridge
+  useEffect(() => {
+    const activeSess = selectedSessionFile
+      ? sessions.find((s) => s.id === selectedSessionFile)
+      : null;
+
+    fetch('http://127.0.0.1:1425/api/presence', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        activeSess
+          ? {
+              active: true,
+              sessionName: activeSess.name,
+              category: activeSess.category || 'Axon Studio',
+            }
+          : {
+              active: false,
+              sessionName: '',
+              category: 'Standby',
+            }
+      ),
+    }).catch(() => {});
+  }, [selectedSessionFile, sessions]);
+
   // In-line Renaming State
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');

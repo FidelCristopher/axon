@@ -17,6 +17,12 @@ const activeSessions = new Map();
 const servicesCache = new Map();
 const nodeRuntimeState = new Map(); // Tracks live background execution per node for seamless minimize/reopen
 const sseClients = new Set();
+let discordPresenceState = {
+  active: false,
+  sessionName: "",
+  category: "Standby",
+  updatedAt: Date.now(),
+};
 
 // ============================================================================
 // JARVIS TELEGRAM BOT <-> AXON STUDIO 2-WAY BRIDGE
@@ -802,6 +808,31 @@ const server = http.createServer(async (req, res) => {
     res.write('data: {"type":"connected"}\n\n');
     sseClients.add(res);
     req.on("close", () => sseClients.delete(res));
+    return;
+  }
+
+  // 2a. Discord Rich Presence State (GET / POST — 0 LLM tokens)
+  if (url.pathname === "/api/presence" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(discordPresenceState));
+    return;
+  }
+
+  if (url.pathname === "/api/presence" && req.method === "POST") {
+    try {
+      const body = await readJsonBody(req);
+      discordPresenceState = {
+        active: Boolean(body.active),
+        sessionName: String(body.sessionName || "").slice(0, 80),
+        category: String(body.category || "Standby").slice(0, 64),
+        updatedAt: Date.now(),
+      };
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, presence: discordPresenceState }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: err.message }));
+    }
     return;
   }
 
