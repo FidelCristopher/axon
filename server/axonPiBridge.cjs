@@ -575,7 +575,53 @@ function readJsonBody(req) {
   });
 }
 
-const sessionMetaCache = new Map(); // fileName -> { mtimeMs, size, name, category }
+const SESSION_INDEX_CACHE_FILE = "/tmp/axon-session-index.json";
+const sessionMetaCache = new Map(); // fileName -> { mtimeMs, size, name, category, cwd, updatedAt, skills }
+
+try {
+  if (fs.existsSync(SESSION_INDEX_CACHE_FILE)) {
+    const saved = JSON.parse(fs.readFileSync(SESSION_INDEX_CACHE_FILE, "utf-8"));
+    for (const [k, v] of Object.entries(saved)) {
+      sessionMetaCache.set(k, v);
+    }
+  }
+} catch {
+  // ignore corrupt cache
+}
+
+let saveCacheTimer = null;
+function scheduleSaveSessionCache() {
+  if (saveCacheTimer) return;
+  saveCacheTimer = setTimeout(() => {
+    saveCacheTimer = null;
+    try {
+      fs.writeFileSync(SESSION_INDEX_CACHE_FILE, JSON.stringify(Object.fromEntries(sessionMetaCache)), "utf-8");
+    } catch {
+      // ignore
+    }
+  }, 500);
+}
+
+function readHeadAndTail(fullPath, size, chunkBytes = 65536) {
+  const fd = fs.openSync(fullPath, "r");
+  try {
+    const headLen = Math.min(size, chunkBytes);
+    const headBuf = Buffer.alloc(headLen);
+    fs.readSync(fd, headBuf, 0, headLen, 0);
+    const headStr = headBuf.toString("utf-8");
+
+    let tailStr = "";
+    if (size > chunkBytes) {
+      const tailLen = Math.min(size, chunkBytes);
+      const tailBuf = Buffer.alloc(tailLen);
+      fs.readSync(fd, tailBuf, 0, tailLen, size - tailLen);
+      tailStr = tailBuf.toString("utf-8");
+    }
+    return { headStr, tailStr };
+  } finally {
+    fs.closeSync(fd);
+  }
+}
 
 function extractSessionMeta(fullPath, fileName, stat) {
   const cached = sessionMetaCache.get(fileName);
@@ -591,11 +637,12 @@ function extractSessionMeta(fullPath, fileName, stat) {
   let skills = null;
 
   try {
-    const raw = fs.readFileSync(fullPath, "utf-8");
+    // Fast 64KB head + 64KB tail read (never blocks event loop reading 177MB+ files over WSL2 9P!)
+    const { headStr, tailStr } = readHeadAndTail(fullPath, stat.size, 65536);
 
     // 1. Parse first line for cwd/category & fallback header timestamp
-    const firstNl = raw.indexOf("\n");
-    const firstLine = firstNl === -1 ? raw : raw.slice(0, firstNl);
+    const firstNl = headStr.indexOf("\n");
+    const firstLine = firstNl === -1 ? headStr : headStr.slice(0, firstNl);
     if (firstLine.trim().startsWith("{")) {
       try {
         const hdr = JSON.parse(firstLine);
@@ -621,9 +668,9 @@ function extractSessionMeta(fullPath, fileName, stat) {
     }
 
     // 1b. Read real last activity timestamp from the last non-empty JSONL line
-    const trimmedRaw = raw.trimEnd();
-    const lastNl = trimmedRaw.lastIndexOf("\n");
-    const lastLine = lastNl === -1 ? trimmedRaw : trimmedRaw.slice(lastNl + 1);
+    const tailSource = (tailStr || headStr).trimEnd();
+    const lastNl = tailSource.lastIndexOf("\n");
+    const lastLine = lastNl === -1 ? tailSource : tailSource.slice(lastNl + 1);
     if (lastLine.trim().startsWith("{")) {
       try {
         const tailObj = JSON.parse(lastLine);
@@ -637,44 +684,39 @@ function extractSessionMeta(fullPath, fileName, stat) {
       }
     }
 
-    // 2. Find the LATEST `"type":"session_info"` entry anywhere in the file (exact Pi rename behavior)
-    let searchIdx = raw.lastIndexOf('"type":"session_info"');
-    if (searchIdx === -1) searchIdx = raw.lastIndexOf('"type": "session_info"');
-    if (searchIdx !== -1) {
-      const lineStart = raw.lastIndexOf("\n", searchIdx) + 1;
-      let lineEnd = raw.indexOf("\n", searchIdx);
-      if (lineEnd === -1) lineEnd = raw.length;
+    const findLatestJsonObj = (buf, marker) => {
+      if (!buf) return null;
+      const idx = buf.lastIndexOf(marker);
+      if (idx === -1) return null;
+      const lineStart = buf.lastIndexOf("\n", idx) + 1;
+      let lineEnd = buf.indexOf("\n", idx);
+      if (lineEnd === -1) lineEnd = buf.length;
       try {
-        const infoObj = JSON.parse(raw.slice(lineStart, lineEnd));
-        if (infoObj && infoObj.name) {
-          name = String(infoObj.name).trim();
-        }
+        return JSON.parse(buf.slice(lineStart, lineEnd));
       } catch {
-        // ignore
+        return null;
       }
+    };
+
+    // 2. Find the LATEST `"type":"session_info"` entry in tail, then head
+    const infoObj =
+      findLatestJsonObj(tailStr, '"type":"session_info"') ||
+      findLatestJsonObj(headStr, '"type":"session_info"');
+    if (infoObj && infoObj.name) {
+      name = String(infoObj.name).trim();
     }
 
-    // 2b. Find latest persisted `"type":"axon_skills"` entry if any
-    let skillIdx = raw.lastIndexOf('"type":"axon_skills"');
-    if (skillIdx === -1) skillIdx = raw.lastIndexOf('"type": "axon_skills"');
-    if (skillIdx !== -1) {
-      const sStart = raw.lastIndexOf("\n", skillIdx) + 1;
-      let sEnd = raw.indexOf("\n", skillIdx);
-      if (sEnd === -1) sEnd = raw.length;
-      try {
-        const sObj = JSON.parse(raw.slice(sStart, sEnd));
-        if (sObj && Array.isArray(sObj.skills)) {
-          skills = sObj.skills;
-        }
-      } catch {
-        // ignore
-      }
+    // 2b. Find latest persisted `"type":"axon_skills"` entry in tail, then head
+    const skillObj =
+      findLatestJsonObj(tailStr, '"type":"axon_skills"') ||
+      findLatestJsonObj(headStr, '"type":"axon_skills"');
+    if (skillObj && Array.isArray(skillObj.skills)) {
+      skills = skillObj.skills;
     }
 
-    // 3. Fallback to first user text message if no session_info name exists
+    // 3. Fallback to first user text message in head if no session_info name exists
     if (!name) {
-      const lines = raw.slice(0, 65536).split("\n");
-      for (const line of lines) {
+      for (const line of headStr.split("\n")) {
         if (!line.includes('"role":"user"') && !line.includes('"role": "user"')) continue;
         try {
           const obj = JSON.parse(line);
@@ -698,6 +740,7 @@ function extractSessionMeta(fullPath, fileName, stat) {
 
   const displayName =
     name ||
+    (cached && cached.name) ||
     (firstUserText
       ? firstUserText.replace(/\/tmp\/pi-clipboard-\S+\s*/g, "").replace(/\s+/g, " ").trim().slice(0, 48)
       : "") ||
@@ -709,10 +752,11 @@ function extractSessionMeta(fullPath, fileName, stat) {
     name: displayName,
     category,
     cwd,
-    skills: typeof skills !== "undefined" ? skills : null,
+    skills: skills || (cached && cached.skills) || null,
     updatedAt: lastActivityMs || stat.mtimeMs,
   };
   sessionMetaCache.set(fileName, meta);
+  scheduleSaveSessionCache();
   return meta;
 }
 

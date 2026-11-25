@@ -166,10 +166,15 @@ export const PeekTerminalModal: React.FC = () => {
         term.focus();
       };
 
+      let receivedFirstOutput = false;
       ws.onmessage = (evt) => {
         try {
           const msg = JSON.parse(evt.data);
           if (msg.type === 'output' && typeof msg.data === 'string') {
+            if (!receivedFirstOutput) {
+              receivedFirstOutput = true;
+              term.clear();
+            }
             term.write(msg.data);
           }
         } catch {
@@ -191,6 +196,7 @@ export const PeekTerminalModal: React.FC = () => {
       };
     };
 
+    term.writeln('\x1b[36m[Connecting to native Pi PTY...]\x1b[0m');
     connectWs();
 
     // Forward all terminal keystrokes directly to real Pi PTY
