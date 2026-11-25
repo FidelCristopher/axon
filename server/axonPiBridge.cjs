@@ -588,6 +588,7 @@ function extractSessionMeta(fullPath, fileName, stat) {
   let cwd = "/home/fidel";
   let firstUserText = "";
   let lastActivityMs = 0;
+  let skills = null;
 
   try {
     const raw = fs.readFileSync(fullPath, "utf-8");
@@ -653,6 +654,23 @@ function extractSessionMeta(fullPath, fileName, stat) {
       }
     }
 
+    // 2b. Find latest persisted `"type":"axon_skills"` entry if any
+    let skillIdx = raw.lastIndexOf('"type":"axon_skills"');
+    if (skillIdx === -1) skillIdx = raw.lastIndexOf('"type": "axon_skills"');
+    if (skillIdx !== -1) {
+      const sStart = raw.lastIndexOf("\n", skillIdx) + 1;
+      let sEnd = raw.indexOf("\n", skillIdx);
+      if (sEnd === -1) sEnd = raw.length;
+      try {
+        const sObj = JSON.parse(raw.slice(sStart, sEnd));
+        if (sObj && Array.isArray(sObj.skills)) {
+          skills = sObj.skills;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     // 3. Fallback to first user text message if no session_info name exists
     if (!name) {
       const lines = raw.slice(0, 65536).split("\n");
@@ -691,6 +709,7 @@ function extractSessionMeta(fullPath, fileName, stat) {
     name: displayName,
     category,
     cwd,
+    skills: typeof skills !== "undefined" ? skills : null,
     updatedAt: lastActivityMs || stat.mtimeMs,
   };
   sessionMetaCache.set(fileName, meta);
@@ -765,6 +784,7 @@ const server = http.createServer(async (req, res) => {
             name: meta.name,
             category: meta.category,
             cwd: meta.cwd,
+            skills: meta.skills,
             role: "",
             tokens: 0,
             size: stat.size,
@@ -904,6 +924,98 @@ const server = http.createServer(async (req, res) => {
       console.log(`[Pi Bridge] Permanently deleted Pi session file: ${path.basename(targetPath)}`);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ success: true, deletedFile: path.basename(targetPath) }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // 2f. Permanently Inject Skills (clones github:owner/repo into Pi skills dir & persists to .jsonl)
+  if (url.pathname === "/api/skills/inject" && req.method === "POST") {
+    try {
+      const { sessionId, fileName, skills } = await readJsonBody(req);
+      if (!Array.isArray(skills)) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "skills array is required" }));
+        return;
+      }
+
+      const SKILLS_DIR = "/home/fidel/.pi/agent/skills";
+      fs.mkdirSync(SKILLS_DIR, { recursive: true });
+
+      const installedGitHub = [];
+      for (const sk of skills) {
+        const s = String(sk).trim();
+        if (!s.startsWith("github:")) continue;
+        const repoSlug = s.replace(/^github:/, "");
+        const parts = repoSlug.split("/").filter(Boolean);
+        if (parts.length < 2) continue;
+        const owner = parts[0].replace(/[^a-zA-Z0-9._-]/g, "");
+        const repo = parts[1].replace(/[^a-zA-Z0-9._-]/g, "");
+        const destDir = path.join(SKILLS_DIR, repo);
+
+        if (!fs.existsSync(destDir)) {
+          await new Promise((resolve) => {
+            execFile(
+              "git",
+              ["clone", "--depth", "1", `https://github.com/${owner}/${repo}.git`, destDir],
+              { timeout: 30000 },
+              (err) => {
+                if (err) console.warn(`[Pi Bridge] GitHub skill clone warning (${owner}/${repo}):`, err.message);
+                resolve();
+              }
+            );
+          });
+        }
+
+        // Ensure SKILL.md exists at root of cloned repo so Pi natively registers /skill:<repo>
+        const skillMd = path.join(destDir, "SKILL.md");
+        if (fs.existsSync(destDir) && !fs.existsSync(skillMd)) {
+          const readmePath = path.join(destDir, "README.md");
+          const readmeHint = fs.existsSync(readmePath)
+            ? `Read \`${readmePath}\` for full guidelines and patterns from \`${owner}/${repo}\`.`
+            : `Cloned GitHub skill repository \`${owner}/${repo}\` installed at \`${destDir}\`.`;
+          fs.writeFileSync(
+            skillMd,
+            `---\nname: ${repo}\ndescription: GitHub skill imported from ${owner}/${repo} via Axon Studio.\n---\n\n# ${repo} (${owner}/${repo})\n\n${readmeHint}\n`,
+            "utf-8"
+          );
+        }
+        installedGitHub.push(`${owner}/${repo}`);
+      }
+
+      // Persist session skill list directly inside the real Pi .jsonl file
+      let persistedFile = null;
+      const lookup = fileName || sessionId;
+      if (lookup) {
+        const targetPath = findSessionFile(String(lookup));
+        if (targetPath && fs.existsSync(targetPath)) {
+          const entryLine = JSON.stringify({
+            type: "axon_skills",
+            id: `skills-${Date.now().toString(16)}`,
+            timestamp: new Date().toISOString(),
+            skills,
+          });
+          fs.appendFileSync(targetPath, `\n${entryLine}\n`, "utf-8");
+          persistedFile = path.basename(targetPath);
+          sessionMetaCache.delete(persistedFile);
+        }
+      }
+
+      console.log(
+        `[Pi Bridge] Persisted ${skills.length} skill(s) to ${persistedFile || "(ui-only)"}` +
+          (installedGitHub.length ? ` | GitHub cloned: ${installedGitHub.join(", ")}` : "")
+      );
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          success: true,
+          persistedFile,
+          installedGitHub,
+          skills,
+        })
+      );
     } catch (err) {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ success: false, error: err.message }));

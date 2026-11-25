@@ -184,7 +184,7 @@ interface AxonState {
 
   // Actions
   switchProject: (projectId: string) => void;
-  selectSessionTopology: (session: { id: string; name: string; category?: string; cwd?: string; role?: string; tokens?: number; size?: number }) => void;
+  selectSessionTopology: (session: { id: string; name: string; category?: string; cwd?: string; skills?: string[] | null; role?: string; tokens?: number; size?: number }) => void;
   setSelectedEntityId: (id: string) => void;
   toggleSessionSelect: (id: string) => void;
   selectAllSessions: (select: boolean) => void;
@@ -269,7 +269,7 @@ export const useAxonStore = create<AxonState>((set, get) => {
             statusMessage: 'Live menu & customizer orchestrator',
             tokenUsed: session.tokens || 31000,
             tokenMax: 1000000,
-            skills: ['nextjs-web', 'antislop-ui'],
+            skills: session.skills && session.skills.length > 0 ? session.skills : ['nextjs-web', 'antislop-ui'],
             createdAt: 'Active Pi Session',
             summary: 'Artisan Matcha simulation & beverage ordering app.',
           };
@@ -306,7 +306,7 @@ export const useAxonStore = create<AxonState>((set, get) => {
             statusMessage: 'Session entity ready (Zero-Idle)',
             tokenUsed: session.tokens || 15000,
             tokenMax: 1000000,
-            skills: ['antislop-ui'],
+            skills: session.skills && session.skills.length > 0 ? session.skills : ['antislop-ui'],
             createdAt: 'Active Pi Session',
             summary: `Pi session: ${session.name} (${session.category || 'Local'}). Click to inspect terminal.`,
           };

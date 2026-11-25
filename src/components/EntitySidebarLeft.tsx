@@ -18,6 +18,7 @@ interface PiSessionItem {
   name: string;
   category: string;
   cwd?: string;
+  skills?: string[] | null;
   role: string;
   tokens: number;
   size: number;

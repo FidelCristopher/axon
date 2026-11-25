@@ -201,14 +201,37 @@ export const NodeDetailSidebar: React.FC = () => {
     setActiveSkillsQueue((prev) => prev.filter((s) => s !== skillName));
   };
 
-  const handleApplySkillsToSelected = () => {
+  const persistEntitySkills = async (entity: GraphEntity, nextSkills: string[]) => {
+    try {
+      await fetch('http://127.0.0.1:1425/api/skills/inject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: entity.uuid || entity.id,
+          skills: nextSkills,
+        }),
+      });
+    } catch {
+      // ignore if bridge offline
+    }
+  };
+
+  const handleApplySkillsToSelected = async () => {
     if (activeSkillsQueue.length === 0 || selectedSessionIds.length === 0) return;
     applySkillsToSelected(activeSkillsQueue);
 
+    const targets = entities.filter((e) => selectedSessionIds.includes(e.id));
+    await Promise.all(
+      targets.map((ent) => {
+        const merged = Array.from(new Set([...ent.skills, ...activeSkillsQueue]));
+        return persistEntitySkills(ent, merged);
+      })
+    );
+
     const hasGitHubSkill = activeSkillsQueue.some((s) => s.startsWith('github:'));
     const message = hasGitHubSkill
-      ? `Installed & Injected ${activeSkillsQueue.length} skill(s) (including GitHub repositories) to ${selectedSessionIds.length} target session(s)!`
-      : `Successfully injected ${activeSkillsQueue.length} skill(s) to ${selectedSessionIds.length} target session(s)!`;
+      ? `Cloned & saved ${activeSkillsQueue.length} skill(s) (incl. GitHub repos) into Pi memory for ${selectedSessionIds.length} session(s)!`
+      : `Saved ${activeSkillsQueue.length} skill(s) permanently to Pi memory for ${selectedSessionIds.length} session(s)!`;
 
     setInjectionSuccessMsg(message);
     setTimeout(() => {
@@ -216,14 +239,25 @@ export const NodeDetailSidebar: React.FC = () => {
     }, 4000);
   };
 
-  const handleAddInlineSkill = (sessionId: string) => {
+  const handleAddInlineSkill = async (sessionId: string) => {
     const gh = parseGitHubSkillUrl(inlineSkillText);
     const skillTag = gh ? gh.tag : inlineSkillText.trim().toLowerCase();
     if (skillTag) {
       addSkillToEntity(sessionId, skillTag);
+      const ent = entities.find((e) => e.id === sessionId);
+      if (ent) {
+        const merged = Array.from(new Set([...ent.skills, skillTag]));
+        await persistEntitySkills(ent, merged);
+      }
     }
     setInlineSkillText('');
     setAddingSkillToSessionId(null);
+  };
+
+  const handleRemoveSkillFromEntity = async (session: GraphEntity, skillName: string) => {
+    removeSkillFromEntity(session.id, skillName);
+    const remaining = session.skills.filter((s) => s !== skillName);
+    await persistEntitySkills(session, remaining);
   };
 
   const allSelected = entities.length > 0 && selectedSessionIds.length === entities.length;
@@ -466,7 +500,7 @@ export const NodeDetailSidebar: React.FC = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          removeSkillFromEntity(session.id, skillName);
+                          handleRemoveSkillFromEntity(session, skillName);
                         }}
                         className={`rounded p-0.2 transition-colors ${
                           isGitHub ? 'text-[#94a3b8] hover:text-[#ef4444]' : 'text-[#94a3b8] hover:text-[#ef4444]'
