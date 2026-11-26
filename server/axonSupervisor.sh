@@ -7,11 +7,12 @@ NODE_BIN="/home/fidel/.local/share/pi-node/current/bin/node"
 BRIDGE_JS="/mnt/c/Users/Pongo/axon/server/axonPiBridge.cjs"
 LOG_FILE="/tmp/axon-pi-bridge.log"
 
-# Prevent duplicate supervisors
+# If another supervisor is already running, stay alive quietly (0% CPU)
+# so Axon Studio.exe's hidden wsl.exe process keeps WSL2 alive even if WezTerm is closed!
 if [ -f "$LOCK_FILE" ]; then
   OLD_PID=$(cat "$LOCK_FILE" 2>/dev/null || true)
   if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
-    exit 0
+    exec tail -f /dev/null
   fi
 fi
 

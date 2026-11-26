@@ -224,10 +224,9 @@ const NativePiPtyPane: React.FC<NativePiPtyPaneProps> = ({
       ws.onclose = () => {
         if (isDisposed) return;
         setConnStatus('disconnected');
-        term.write('\r\n\x1b[33m[Axon Bridge reconnecting automatically...]\x1b[0m\r\n');
         reconnectTimer = window.setTimeout(() => {
           connectWs();
-        }, 1500);
+        }, 2000);
       };
     };
 
@@ -399,8 +398,12 @@ const NativePiPtyPane: React.FC<NativePiPtyPaneProps> = ({
             <span className="text-[13px] font-bold text-[#ffffff] truncate">
               π • {entity.name}
             </span>
-            <span className="text-[11px] px-1.5 py-0.5 rounded bg-[#18181b] border border-[#262626] text-[#00ffff] shrink-0">
-              NATIVE PI PTY
+            <span
+              className={`text-[11px] px-1.5 py-0.5 rounded bg-[#18181b] border border-[#262626] shrink-0 ${
+                connStatus === 'disconnected' ? 'text-[#f87171]' : 'text-[#00ffff]'
+              }`}
+            >
+              {connStatus === 'disconnected' ? 'RECONNECTING...' : 'NATIVE PI PTY'}
             </span>
             <span className="text-[11px] text-[#737373] truncate hidden sm:inline">
               {cwdDisplay}

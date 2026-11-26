@@ -23,9 +23,11 @@ namespace AxonStudio
         {
             try
             {
+                // ALWAYS attach Axon Studio's own hidden WSL2 supervisor/keep-alive process,
+                // even if the bridge was already started by WezTerm, so closing WezTerm NEVER shuts down WSL2!
+                StartWslPiBridge();
                 if (!IsBridgeOnline())
                 {
-                    StartWslPiBridge();
                     bool ready = WaitForBridge(25000);
                     if (!ready)
                     {
