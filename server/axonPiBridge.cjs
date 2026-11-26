@@ -11,11 +11,14 @@ const {
   setPtyStatusCallback,
   getActivePtyCount,
 } = require("./ptyManager.cjs");
+const PI_CURRENT_VERSION = fs.existsSync("/home/fidel/.pi/agent/install/current-version")
+  ? fs.readFileSync("/home/fidel/.pi/agent/install/current-version", "utf-8").trim()
+  : "1.6.1";
 const {
   createAgentSessionServices,
   createAgentSessionFromServices,
   SessionManager,
-} = require("/home/fidel/.pi/agent/install/releases/1.6.0/node_modules/@earendil-works/pi-coding-agent");
+} = require(`/home/fidel/.pi/agent/install/releases/${PI_CURRENT_VERSION}/node_modules/@earendil-works/pi-coding-agent`);
 
 const PORT = 1425;
 const SESSIONS_DIR = "/home/fidel/.pi/agent/sessions/--home-fidel--";
