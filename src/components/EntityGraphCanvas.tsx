@@ -35,7 +35,7 @@ export const EntityGraphCanvas: React.FC = () => {
       generatedNodes.push({
         id: hubEntity.id,
         type: 'entityGraphNode',
-        position: { x: 180, y: 260 },
+        position: { x: 380, y: 280 },
         data: {
           entity: hubEntity,
           isSelected: hubEntity.id === selectedEntityId,
@@ -44,19 +44,27 @@ export const EntityGraphCanvas: React.FC = () => {
       });
     }
 
-    // Fan branches cleanly to the right of the central Brain Hub (matching the Axon neuron logo)
-    const spacingY = 120;
-    const totalHeight = Math.max(0, (branchEntities.length - 1) * spacingY);
-    const startY = 260 - totalHeight / 2;
+    // Organic radial neuron constellation positions radiating around the central Brain Hub
+    const radialPresets = [
+      { x: 680, y: 160 }, // Branch 1 (Main Session — upper right)
+      { x: 680, y: 400 }, // Branch 2 (lower right)
+      { x: 380, y: 500 }, // Branch 3 (bottom)
+      { x: 120, y: 400 }, // Branch 4 (lower left)
+      { x: 120, y: 160 }, // Branch 5 (upper left)
+      { x: 380, y: 60 },  // Branch 6 (top)
+    ];
 
     branchEntities.forEach((entity, index) => {
+      const pos =
+        radialPresets[index] || {
+          x: 380 + Math.cos((index * 2 * Math.PI) / Math.max(1, branchEntities.length)) * 270,
+          y: 280 + Math.sin((index * 2 * Math.PI) / Math.max(1, branchEntities.length)) * 220,
+        };
+
       generatedNodes.push({
         id: entity.id,
         type: 'entityGraphNode',
-        position: {
-          x: hubEntity ? 540 : 340,
-          y: startY + index * spacingY,
-        },
+        position: pos,
         data: {
           entity,
           isSelected: entity.id === selectedEntityId,
