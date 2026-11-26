@@ -6,7 +6,7 @@ const { spawn } = require("child_process");
 const PTY_HOST_SCRIPT = path.join(__dirname, "ptyHost.py");
 const PI_BIN = "/home/fidel/.pi/agent/bin/pi";
 const SESSIONS_DIR = "/home/fidel/.pi/agent/sessions/--home-fidel--";
-const MAX_BUFFER_BYTES = 128 * 1024; // 128 KB rolling ANSI buffer for instant minimize/reopen
+const MAX_BUFFER_BYTES = 2 * 1024 * 1024; // 2 MB rolling ANSI buffer for deep scrollback across Ctrl+R reloads
 
 const ptySessions = new Map();
 let statusCallback = null;
