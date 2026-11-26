@@ -18,12 +18,14 @@
   color-scheme: light;
 }
 
-.wezterm-terminal,
-.wezterm-terminal * {
-  font-family: 'JetBrains Mono', monospace !important;
-  font-feature-settings: "liga" 1, "calt" 1;
+.wezterm-terminal {
+  font-family: 'JetBrains Mono', monospace;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.wezterm-terminal .xterm {
+  user-select: text;
 }
 
 .wezterm-terminal ::-webkit-scrollbar-track {

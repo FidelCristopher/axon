@@ -137,11 +137,6 @@ const NativePiPtyPane: React.FC<NativePiPtyPaneProps> = ({
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(container);
-    try {
-      fitAddon.fit();
-    } catch {
-      // container may be hidden initially
-    }
 
     termRef.current = term;
     fitRef.current = fitAddon;
@@ -165,6 +160,19 @@ const NativePiPtyPane: React.FC<NativePiPtyPaneProps> = ({
         // ignore resize race
       }
     };
+
+    // Wait for JetBrains Mono webfont to finish loading before measuring cell width
+    // so xterm.js never clips the right edge or scrollbar!
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => {
+        if (!isDisposed) {
+          term.options.fontFamily = "'JetBrains Mono', 'Cascadia Code', Consolas, monospace";
+          syncSize();
+        }
+      });
+    } else {
+      syncSize();
+    }
 
     const connectWs = () => {
       if (isDisposed) return;
@@ -360,7 +368,13 @@ const NativePiPtyPane: React.FC<NativePiPtyPaneProps> = ({
         }
       }}
     >
-      <div className="wezterm-terminal relative w-full max-w-6xl h-[90vh] bg-[#000000] border border-[#262626] rounded-lg shadow-2xl flex flex-col overflow-hidden">
+      <div
+        className="wezterm-terminal relative w-full max-w-6xl h-[90vh] bg-[#000000] border border-[#262626] rounded-lg shadow-2xl flex flex-col overflow-hidden"
+        onWheel={(e) => {
+          // Isolate mouse wheel from React Flow canvas behind the modal
+          e.stopPropagation();
+        }}
+      >
         {/* Drag & Drop Image Overlay */}
         {isDraggingOver && (
           <div className="absolute inset-0 z-40 bg-[#000000]/90 border-2 border-dashed border-[#ff00ff] rounded-lg flex flex-col items-center justify-center space-y-2 pointer-events-none">
