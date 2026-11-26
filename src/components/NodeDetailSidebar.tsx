@@ -272,7 +272,8 @@ export const NodeDetailSidebar: React.FC = () => {
     await persistEntitySkills(session, remaining);
   };
 
-  const allSelected = entities.length > 0 && selectedSessionIds.length === entities.length;
+  const terminalEntities = entities.filter((e) => e.type !== 'hub');
+  const allSelected = terminalEntities.length > 0 && selectedSessionIds.length === terminalEntities.length;
 
   return (
     <aside className="w-88 shrink-0 bg-[#f8fafc] border-l border-[#e2e8f0] flex flex-col h-full select-none text-xs z-10 shadow-xs">
@@ -386,7 +387,7 @@ export const NodeDetailSidebar: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         <div className="flex items-center justify-between pb-1 text-xs text-[#64748b]">
           <span className="font-bold text-[11px] uppercase tracking-wider text-[#64748b] font-mono">
-            Active Panels ({selectedSessionIds.length}/{entities.length})
+            Active Panels ({selectedSessionIds.length}/{terminalEntities.length})
           </span>
           <button
             onClick={() => selectAllSessions(!allSelected)}
@@ -397,7 +398,7 @@ export const NodeDetailSidebar: React.FC = () => {
           </button>
         </div>
 
-        {entities.length === 0 ? (
+        {terminalEntities.length === 0 ? (
           <div className="py-10 px-4 text-center rounded-lg border border-dashed border-[#cbd5e1] bg-[#ffffff] space-y-1.5 my-2">
             <div className="text-xs font-bold text-[#0f172a] font-mono">No Active Session</div>
             <p className="text-[11px] font-mono text-[#64748b] leading-relaxed">
@@ -405,7 +406,7 @@ export const NodeDetailSidebar: React.FC = () => {
             </p>
           </div>
         ) : (
-          entities.map((session) => {
+          terminalEntities.map((session) => {
             const isSelected = selectedSessionIds.includes(session.id);
           const isFocusedInGraph = selectedEntityId === session.id;
           const isWorking = session.status === 'WORKING';

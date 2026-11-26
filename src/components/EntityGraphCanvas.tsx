@@ -28,25 +28,35 @@ export const EntityGraphCanvas: React.FC = () => {
     const generatedNodes: Node[] = [];
     const generatedEdges: Edge[] = [];
 
-    // Organic, clean constellation positions on pure white canvas
-    const positions: Record<string, { x: number; y: number }> = {
-      'hub-main': { x: 380, y: 280 },
-      'node-dev-1': { x: 680, y: 160 },
-      'node-dev-2': { x: 680, y: 400 },
-      'node-qa': { x: 380, y: 500 },
-      'node-designer': { x: 120, y: 400 },
-    };
+    const hubEntity = entities.find((e) => e.type === 'hub');
+    const branchEntities = entities.filter((e) => e.type !== 'hub');
 
-    entities.forEach((entity, index) => {
-      const pos = positions[entity.id] || {
-        x: 380 + Math.cos((index * 2 * Math.PI) / Math.max(1, entities.length)) * 260,
-        y: 280 + Math.sin((index * 2 * Math.PI) / Math.max(1, entities.length)) * 260,
-      };
+    if (hubEntity) {
+      generatedNodes.push({
+        id: hubEntity.id,
+        type: 'entityGraphNode',
+        position: { x: 180, y: 260 },
+        data: {
+          entity: hubEntity,
+          isSelected: hubEntity.id === selectedEntityId,
+        },
+        draggable: true,
+      });
+    }
 
+    // Fan branches cleanly to the right of the central Brain Hub (matching the Axon neuron logo)
+    const spacingY = 120;
+    const totalHeight = Math.max(0, (branchEntities.length - 1) * spacingY);
+    const startY = 260 - totalHeight / 2;
+
+    branchEntities.forEach((entity, index) => {
       generatedNodes.push({
         id: entity.id,
         type: 'entityGraphNode',
-        position: pos,
+        position: {
+          x: hubEntity ? 540 : 340,
+          y: startY + index * spacingY,
+        },
         data: {
           entity,
           isSelected: entity.id === selectedEntityId,
@@ -112,7 +122,11 @@ export const EntityGraphCanvas: React.FC = () => {
         nodeTypes={nodeTypes}
         onNodeClick={(_, node) => {
           setSelectedEntityId(node.id);
-          setIsTerminalModalOpen(true);
+          const clickedEntity = (node.data as any)?.entity;
+          // Center Brain Hub is visual-only; only branch nodes open a Pi terminal
+          if (clickedEntity && clickedEntity.type !== 'hub') {
+            setIsTerminalModalOpen(true);
+          }
         }}
         fitView
         minZoom={0.3}

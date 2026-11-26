@@ -248,76 +248,58 @@ export const useAxonStore = create<AxonState>((set, get) => {
       let targetTopology = topologies[session.id];
 
       if (!targetTopology) {
-        const lowerName = session.name.toLowerCase();
-        const isChinese = lowerName.includes('chinese') || lowerName.includes('hanzi') || lowerName.includes('hsk');
-        const isMatcha = lowerName.includes('matcha');
+        // Universal Axon Neuron Topology for EVERY Pi Session (zero mock templates!):
+        // 1. Center Brain Hub (visual-only session anchor, no terminal)
+        // 2. Branch 1: Main Session (100% real Pi .jsonl session with full chat history)
+        const sessionCwd = session.cwd || '/mnt/c/Users/Pongo';
 
-        if (isChinese) {
-          const chineseProj = PROJECT_WORKSPACES[0];
-          targetTopology = {
-            entities: chineseProj.entities,
-            relationships: chineseProj.relationships,
-          };
-        } else if (isMatcha) {
-          const matchaRoot: GraphEntity = {
-            id: `matcha-main-${session.id}`,
-            uuid: session.id,
-            name: 'Matcha Showcase (Main)',
-            type: 'hub',
-            worktree: 'main',
-            worktreePath: '/mnt/c/Users/Pongo/matcha-showcase',
-            status: 'IDLE',
-            statusMessage: 'Live menu & customizer orchestrator',
-            tokenUsed: session.tokens || 31000,
-            tokenMax: 1000000,
-            skills: session.skills && session.skills.length > 0 ? session.skills : ['nextjs-web', 'antislop-ui'],
-            createdAt: 'Active Pi Session',
-            summary: 'Artisan Matcha simulation & beverage ordering app.',
-          };
-          const matchaDev: GraphEntity = {
-            id: `matcha-craft-${session.id}`,
-            uuid: `${session.id}-craft`,
-            name: 'Custom Beverage Craft',
-            type: 'dev',
-            worktree: 'pages/customize',
-            status: 'IDLE',
-            statusMessage: 'Beverage SVG craft & pricing math',
-            tokenUsed: 12000,
-            tokenMax: 1000000,
-            skills: ['antislop-ui'],
-            createdAt: 'Active Pi Session',
-            summary: 'Interactive tumbler SVG sketch and ingredient layer controller.',
-          };
-          targetTopology = {
-            entities: [matchaRoot, matchaDev],
-            relationships: [
-              { id: `rel-matcha-${session.id}`, source: matchaRoot.id, target: matchaDev.id, label: '' },
-            ],
-          };
-        } else {
-          // Dynamic Single Node representing this exact session
-          const singleNode: GraphEntity = {
-            id: `node-${session.id}`,
-            uuid: session.id,
-            name: session.name,
-            type: (session.role as any) || 'dev',
-            worktree: session.category === 'Global' ? 'main' : session.category || 'main',
-            worktreePath: session.cwd || '/mnt/c/Users/Pongo',
-            status: 'IDLE',
-            statusMessage: 'Session entity ready (Zero-Idle)',
-            tokenUsed: session.tokens ?? 0,
-            tokenMax: 1000000,
-            skills: session.skills && session.skills.length > 0 ? session.skills : ['antislop-ui'],
-            createdAt: 'Active Pi Session',
-            summary: `Pi session: ${session.name} (${session.category || 'Local'}). Click to inspect terminal.`,
-          };
-          targetTopology = {
-            entities: [singleNode],
-            relationships: [],
-          };
-        }
+        const brainHub: GraphEntity = {
+          id: `hub-${session.id}`,
+          uuid: `hub-${session.id}`,
+          name: session.name,
+          type: 'hub',
+          worktree: 'hub',
+          worktreePath: sessionCwd,
+          status: 'IDLE',
+          statusMessage: 'Session Brain Hub (Visual Only)',
+          tokenUsed: 0,
+          tokenMax: 1000000,
+          skills: [],
+          createdAt: 'Active Pi Session',
+          summary: `Session hub for ${session.name}`,
+        };
+
+        const mainBranch: GraphEntity = {
+          id: `main-${session.id}`,
+          uuid: session.id,
+          name: 'Main Session',
+          type: 'dev',
+          worktree: 'main',
+          worktreePath: sessionCwd,
+          status: 'IDLE',
+          statusMessage: 'Primary Pi session ready (Zero-Idle)',
+          tokenUsed: session.tokens ?? 0,
+          tokenMax: 1000000,
+          skills: session.skills && session.skills.length > 0 ? session.skills : ['antislop-ui'],
+          createdAt: 'Active Pi Session',
+          summary: `Primary Pi terminal for ${session.name}. Click to open native Pi PTY.`,
+        };
+
+        targetTopology = {
+          entities: [brainHub, mainBranch],
+          relationships: [
+            {
+              id: `rel-${brainHub.id}-${mainBranch.id}`,
+              source: brainHub.id,
+              target: mainBranch.id,
+              label: '',
+            },
+          ],
+        };
         topologies[session.id] = targetTopology;
       }
+
+      const terminalNodes = targetTopology.entities.filter((e) => e.type !== 'hub');
 
       set({
         sessionTopologies: topologies,
@@ -325,8 +307,8 @@ export const useAxonStore = create<AxonState>((set, get) => {
         projectName: session.name,
         entities: targetTopology.entities,
         relationships: targetTopology.relationships,
-        selectedEntityId: targetTopology.entities[0]?.id || '',
-        selectedSessionIds: targetTopology.entities.map((e) => e.id),
+        selectedEntityId: terminalNodes[0]?.id || targetTopology.entities[0]?.id || '',
+        selectedSessionIds: terminalNodes.map((e) => e.id),
       });
 
       // Automatically sync real sibling Git worktrees from disk onto the canvas
@@ -372,7 +354,9 @@ export const useAxonStore = create<AxonState>((set, get) => {
 
     selectAllSessions: (select) => {
       set((state) => ({
-        selectedSessionIds: select ? state.entities.map((e) => e.id) : [],
+        selectedSessionIds: select
+          ? state.entities.filter((e) => e.type !== 'hub').map((e) => e.id)
+          : [],
       }));
     },
 
