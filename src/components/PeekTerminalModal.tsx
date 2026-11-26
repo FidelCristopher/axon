@@ -303,7 +303,7 @@ const NativePiPtyPane: React.FC<NativePiPtyPaneProps> = ({
     };
   }, [entity.id, entity.uuid, restartNonce, uploadAndInjectImages]);
 
-  // Whenever this pane becomes visible again after minimize/reopen: refit + restore keyboard focus instantly!
+  // Whenever this pane becomes visible again after minimize/reopen: refit + scrollToBottom + full redraw + focus!
   useEffect(() => {
     if (!isActiveVisible) return;
     const raf = requestAnimationFrame(() => {
@@ -311,17 +311,24 @@ const NativePiPtyPane: React.FC<NativePiPtyPaneProps> = ({
         fitRef.current?.fit();
         const term = termRef.current;
         const ws = wsRef.current;
-        if (term && ws && ws.readyState === WebSocket.OPEN && term.cols > 10 && term.rows > 4) {
-          ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+        if (term) {
+          term.refresh(0, Math.max(0, term.rows - 1));
+          term.scrollToBottom();
+          if (ws && ws.readyState === WebSocket.OPEN && term.cols > 10 && term.rows > 4) {
+            ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+          }
+          term.focus();
         }
-        term?.focus();
       } catch {
         // ignore
       }
     });
-    // Extra focus guard after CSS paint so typing is 100% guaranteed immediately on reopen
     const focusTimer = window.setTimeout(() => {
-      termRef.current?.focus();
+      const term = termRef.current;
+      if (term) {
+        term.scrollToBottom();
+        term.focus();
+      }
     }, 60);
 
     return () => {
@@ -332,8 +339,10 @@ const NativePiPtyPane: React.FC<NativePiPtyPaneProps> = ({
 
   return (
     <div
-      className={`fixed inset-0 z-50 items-center justify-center bg-black/65 backdrop-blur-xs p-3 ${
-        isActiveVisible ? 'flex' : 'hidden'
+      className={`fixed inset-0 flex items-center justify-center bg-black/65 backdrop-blur-xs p-3 transition-opacity duration-75 ${
+        isActiveVisible
+          ? 'opacity-100 pointer-events-auto z-50'
+          : 'opacity-0 pointer-events-none -z-10'
       }`}
       onDragOver={(e) => {
         e.preventDefault();
