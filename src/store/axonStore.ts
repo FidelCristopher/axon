@@ -199,6 +199,7 @@ interface AxonState {
   compactEntityMemory: (id: string) => void;
   compactSelectedEntities: () => void;
   compactAllEntities: () => void;
+  syncRealWorktrees: (repoPath: string) => Promise<void>;
   dispatchTaskToEntity: (id: string, prompt: string) => void;
 }
 
@@ -304,7 +305,7 @@ export const useAxonStore = create<AxonState>((set, get) => {
             worktreePath: session.cwd || '/mnt/c/Users/Pongo',
             status: 'IDLE',
             statusMessage: 'Session entity ready (Zero-Idle)',
-            tokenUsed: session.tokens || 15000,
+            tokenUsed: session.tokens ?? 0,
             tokenMax: 1000000,
             skills: session.skills && session.skills.length > 0 ? session.skills : ['antislop-ui'],
             createdAt: 'Active Pi Session',
@@ -327,6 +328,21 @@ export const useAxonStore = create<AxonState>((set, get) => {
         selectedEntityId: targetTopology.entities[0]?.id || '',
         selectedSessionIds: targetTopology.entities.map((e) => e.id),
       });
+
+      // Automatically sync real sibling Git worktrees from disk onto the canvas
+      const repoPath =
+        session.cwd && session.cwd !== '/home/fidel' && session.cwd !== '/mnt/c/Users/Pongo'
+          ? session.cwd
+          : session.name.toLowerCase().includes('matcha')
+          ? '/mnt/c/Users/Pongo/matcha-showcase'
+          : session.name.toLowerCase().includes('chinese') || session.name.toLowerCase().includes('hanzi')
+          ? '/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning'
+          : session.name.toLowerCase().includes('axon')
+          ? '/mnt/c/Users/Pongo/axon'
+          : '';
+      if (repoPath) {
+        get().syncRealWorktrees(repoPath);
+      }
     },
 
     switchProject: (projectId) => {
@@ -445,69 +461,127 @@ export const useAxonStore = create<AxonState>((set, get) => {
       }));
     },
 
-    compactEntityMemory: (id) => {
+    syncRealWorktrees: async (repoPath: string) => {
+      try {
+        const res = await fetch(
+          `http://127.0.0.1:1425/api/worktrees?repoPath=${encodeURIComponent(repoPath)}`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        const wts: Array<{ path: string; branch: string; isMain: boolean }> = Array.isArray(data?.worktrees)
+          ? data.worktrees
+          : [];
+        const secondary = wts.filter((w) => !w.isMain);
+        if (secondary.length === 0) return;
+
+        set((state) => {
+          const hub = state.entities.find((e) => e.type === 'hub') || state.entities[0];
+          if (!hub) return state;
+
+          const nextEntities = [...state.entities];
+          const nextRels = [...state.relationships];
+          const nextSelected = [...state.selectedSessionIds];
+
+          for (const wt of secondary) {
+            const exists = nextEntities.some(
+              (e) =>
+                e.worktree === wt.branch ||
+                (e.worktreePath && e.worktreePath === wt.path)
+            );
+            if (exists) continue;
+
+            const newId = `wt-${wt.branch.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+            nextEntities.push({
+              id: newId,
+              uuid: newId,
+              name: wt.branch,
+              type: 'dev',
+              worktree: wt.branch,
+              worktreePath: wt.path,
+              status: 'IDLE',
+              statusMessage: `Git worktree: ${wt.path}`,
+              tokenUsed: 0,
+              tokenMax: 1000000,
+              skills: ['antislop-ui'],
+              createdAt: 'Git Worktree',
+              summary: `Real Git worktree branch at ${wt.path}`,
+            });
+            nextRels.push({
+              id: `rel-${hub.id}-${newId}`,
+              source: hub.id,
+              target: newId,
+              label: '',
+            });
+            nextSelected.push(newId);
+          }
+
+          return {
+            entities: nextEntities,
+            relationships: nextRels,
+            selectedSessionIds: nextSelected,
+          };
+        });
+      } catch {
+        // ignore if not a git repo or bridge offline
+      }
+    },
+
+    compactEntityMemory: async (id) => {
+      const target = get().entities.find((e) => e.id === id);
+      if (!target) return;
+
       set((state) => ({
         entities: state.entities.map((e) =>
-          e.id === id ? { ...e, status: 'COMPACTING', statusMessage: 'Compacting memory...' } : e
+          e.id === id ? { ...e, status: 'COMPACTING', statusMessage: 'Compacting Pi session...' } : e
         ),
       }));
 
-      setTimeout(() => {
+      try {
+        const res = await fetch('http://127.0.0.1:1425/api/compact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nodeId: target.id,
+            sessionId: target.uuid || target.id,
+            cwd: target.worktreePath,
+          }),
+        });
+        const ok = res.ok;
         set((state) => ({
           entities: state.entities.map((e) =>
             e.id === id
-              ? { ...e, status: 'IDLE', tokenUsed: Math.floor(e.tokenUsed * 0.25), statusMessage: 'Compacted cleanly' }
+              ? {
+                  ...e,
+                  status: 'IDLE',
+                  statusMessage: ok ? 'Compacted via Pi engine' : 'Compact failed',
+                }
               : e
           ),
         }));
-      }, 1000);
-    },
-
-    compactSelectedEntities: () => {
-      const selectedIds = get().selectedSessionIds;
-      if (selectedIds.length === 0) return;
-
-      set((state) => ({
-        entities: state.entities.map((e) =>
-          selectedIds.includes(e.id)
-            ? { ...e, status: 'COMPACTING', statusMessage: 'Compacting selected memory...' }
-            : e
-        ),
-      }));
-
-      setTimeout(() => {
+      } catch {
         set((state) => ({
           entities: state.entities.map((e) =>
-            selectedIds.includes(e.id)
-              ? { ...e, status: 'IDLE', tokenUsed: Math.floor(e.tokenUsed * 0.25), statusMessage: 'Compacted cleanly' }
-              : e
+            e.id === id ? { ...e, status: 'IDLE', statusMessage: 'Bridge unreachable' } : e
           ),
         }));
-      }, 1000);
+      }
     },
 
-    compactAllEntities: () => {
-      set((state) => ({
-        entities: state.entities.map((e) => ({
-          ...e,
-          status: 'COMPACTING',
-          statusMessage: 'Compacting session transcript...',
-        })),
-      }));
-
-      setTimeout(() => {
-        set((state) => ({
-          entities: state.entities.map((e) => ({
-            ...e,
-            status: 'IDLE',
-            tokenUsed: Math.floor(e.tokenUsed * 0.25),
-            statusMessage: 'Memory compacted cleanly',
-          })),
-        }));
-      }, 1000);
+    compactSelectedEntities: async () => {
+      const selectedIds = get().selectedSessionIds;
+      if (selectedIds.length === 0) return;
+      await Promise.all(selectedIds.map((id) => get().compactEntityMemory(id)));
     },
 
-    dispatchTaskToEntity: (id, prompt) => {
+    compactAllEntities: async () => {
+      const allIds = get().entities.map((e) => e.id);
+      if (allIds.length === 0) return;
+      await Promise.all(allIds.map((id) => get().compactEntityMemory(id)));
+    },
+
+    dispatchTaskToEntity: async (id, prompt) => {
+      const target = get().entities.find((e) => e.id === id);
+      if (!target) return;
       set((state) => ({
         entities: state.entities.map((e) =>
           e.id === id
@@ -515,16 +589,24 @@ export const useAxonStore = create<AxonState>((set, get) => {
             : e
         ),
       }));
-
-      setTimeout(() => {
+      try {
+        await fetch('http://127.0.0.1:1425/api/prompt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nodeId: target.id,
+            sessionId: target.uuid || target.id,
+            cwd: target.worktreePath,
+            prompt,
+          }),
+        });
+      } catch {
         set((state) => ({
           entities: state.entities.map((e) =>
-            e.id === id
-              ? { ...e, status: 'IDLE', tokenUsed: e.tokenUsed + 1200, statusMessage: 'Task finished cleanly' }
-              : e
+            e.id === id ? { ...e, status: 'IDLE', statusMessage: 'Bridge error' } : e
           ),
         }));
-      }, 2800);
+      }
     },
   };
 });

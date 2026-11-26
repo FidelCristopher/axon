@@ -4,7 +4,13 @@ const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
 const { execFile, execFileSync, spawn } = require("child_process");
-const { attachPtyWebSocket, killPtySession, getActivePtyCount } = require("./ptyManager.cjs");
+const {
+  attachPtyWebSocket,
+  killPtySession,
+  sendInputToPty,
+  setPtyStatusCallback,
+  getActivePtyCount,
+} = require("./ptyManager.cjs");
 const {
   createAgentSessionServices,
   createAgentSessionFromServices,
@@ -641,6 +647,7 @@ function extractSessionMeta(fullPath, fileName, stat) {
   let firstUserText = "";
   let lastActivityMs = 0;
   let skills = null;
+  let tokens = 0;
 
   try {
     // Fast 64KB head + 64KB tail read (never blocks event loop reading 177MB+ files over WSL2 9P!)
@@ -739,6 +746,27 @@ function extractSessionMeta(fullPath, fileName, stat) {
       skills = skillObj.skills;
     }
 
+    // 2c. Extract real latest context token usage from tail (or head)
+    const usageSource = tailStr || headStr;
+    const usageIdx = usageSource.lastIndexOf('"totalTokens":');
+    if (usageIdx !== -1) {
+      const mTok = usageSource.slice(usageIdx, usageIdx + 40).match(/"totalTokens"\s*:\s*(\d+)/);
+      if (mTok) tokens = parseInt(mTok[1], 10) || 0;
+    }
+    if (!tokens) {
+      const inIdx = usageSource.lastIndexOf('"input":');
+      if (inIdx !== -1) {
+        const slice = usageSource.slice(inIdx, inIdx + 120);
+        const mIn = slice.match(/"input"\s*:\s*(\d+)/);
+        const mCache = slice.match(/"cacheRead"\s*:\s*(\d+)/);
+        const mOut = slice.match(/"output"\s*:\s*(\d+)/);
+        tokens =
+          (mIn ? parseInt(mIn[1], 10) : 0) +
+          (mCache ? parseInt(mCache[1], 10) : 0) +
+          (mOut ? parseInt(mOut[1], 10) : 0);
+      }
+    }
+
     // 3. Fallback to first user text message in head if no session_info name exists
     if (!name) {
       for (const line of headStr.split("\n")) {
@@ -778,6 +806,7 @@ function extractSessionMeta(fullPath, fileName, stat) {
     category,
     cwd,
     skills: skills || (cached && cached.skills) || null,
+    tokens: tokens || (cached && cached.tokens) || 0,
     updatedAt: lastActivityMs || stat.mtimeMs,
   };
   sessionMetaCache.set(fileName, meta);
@@ -880,7 +909,7 @@ const server = http.createServer(async (req, res) => {
             cwd: meta.cwd,
             skills: meta.skills,
             role: "",
-            tokens: 0,
+            tokens: meta.tokens || 0,
             size: stat.size,
             updatedAt: meta.updatedAt,
           });
@@ -1222,23 +1251,116 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 5. Compact Session Memory
-  if (url.pathname === "/api/compact" && req.method === "POST") {
+  // 2g. Live Local Skills Catalog (reads ~/.pi/agent/skills -> C:\Users\Pongo\Axon-Studio\pi-data\skills)
+  if (url.pathname === "/api/skills/list" && req.method === "GET") {
     try {
-      const { nodeId } = await readJsonBody(req);
-      if (nodeId && activeSessions.has(nodeId)) {
-        const { session } = activeSessions.get(nodeId);
-        if (typeof session.compact === "function") {
-          await session.compact();
-        } else {
-          await session.prompt("/compact");
+      const skillsDir = "/home/fidel/.pi/agent/skills";
+      const result = [];
+      if (fs.existsSync(skillsDir)) {
+        const dirs = fs.readdirSync(skillsDir, { withFileTypes: true });
+        for (const d of dirs) {
+          if (!d.isDirectory() && !d.isSymbolicLink()) continue;
+          const skillMd = path.join(skillsDir, d.name, "SKILL.md");
+          let description = `Installed skill (${d.name})`;
+          let displayName = d.name;
+          if (fs.existsSync(skillMd)) {
+            try {
+              const content = fs.readFileSync(skillMd, "utf-8").slice(0, 1200);
+              const descMatch = content.match(/^description:\s*(.+)$/m);
+              if (descMatch) description = descMatch[1].trim().replace(/^["']|["']$/g, "");
+              const nameMatch = content.match(/^name:\s*(.+)$/m);
+              if (nameMatch) displayName = nameMatch[1].trim().replace(/^["']|["']$/g, "");
+            } catch {
+              // ignore
+            }
+          }
+          result.push({
+            id: d.name,
+            name: displayName,
+            description,
+            category: "system",
+          });
         }
       }
+      result.sort((a, b) => a.id.localeCompare(b.id));
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: true, nodeId }));
+      res.end(JSON.stringify({ skills: result }));
     } catch (err) {
       res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: err.message }));
+      res.end(JSON.stringify({ error: err.message, skills: [] }));
+    }
+    return;
+  }
+
+  // 2h. Real Git Worktree List for Canvas Topology Sync
+  if (url.pathname === "/api/worktrees" && req.method === "GET") {
+    try {
+      const repoPath = url.searchParams.get("repoPath") || "";
+      if (!repoPath || !fs.existsSync(repoPath)) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ worktrees: [] }));
+        return;
+      }
+      execFile("git", ["-C", repoPath, "worktree", "list", "--porcelain"], (err, stdout) => {
+        if (err || !stdout) {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ worktrees: [] }));
+          return;
+        }
+        const blocks = stdout.trim().split(/\n\n+/);
+        const worktrees = [];
+        blocks.forEach((blk, idx) => {
+          const wtMatch = blk.match(/^worktree\s+(.+)$/m);
+          const brMatch = blk.match(/^branch\s+refs\/heads\/(.+)$/m);
+          if (wtMatch) {
+            const wtPath = wtMatch[1].trim();
+            const branch = brMatch ? brMatch[1].trim() : path.basename(wtPath);
+            worktrees.push({
+              path: wtPath,
+              branch,
+              isMain: idx === 0,
+            });
+          }
+        });
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ worktrees }));
+      });
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: err.message, worktrees: [] }));
+    }
+    return;
+  }
+
+  // 5. Compact Session Memory (Real Pi PTY /compact OR real Pi SDK session.compact())
+  if (url.pathname === "/api/compact" && req.method === "POST") {
+    try {
+      const { nodeId, sessionId, cwd } = await readJsonBody(req);
+      let method = "none";
+
+      // 1. If Native Pi PTY is open for this node, send real `/compact` straight to Pi CLI!
+      if (nodeId && sendInputToPty(nodeId, "/compact\r")) {
+        method = "native_pty";
+        console.log(`[Pi Bridge] Sent real /compact to active Native Pi PTY [${nodeId}]`);
+      } else if (nodeId || sessionId) {
+        // 2. Otherwise open the real Pi session and run session.compact() directly on disk
+        const { session } = await getOrCreateSession(nodeId || sessionId, cwd, sessionId || nodeId);
+        if (typeof session.compact === "function") {
+          await session.compact();
+          method = "sdk_compact";
+        } else {
+          await session.prompt("/compact");
+          method = "sdk_prompt";
+        }
+        console.log(`[Pi Bridge] Real Pi compaction finished for [${nodeId || sessionId}] via ${method}`);
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, nodeId, method }));
+    } catch (err) {
+      console.error("[Pi Bridge] Real compaction failed:", err.message);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
     }
     return;
   }
@@ -1477,6 +1599,10 @@ const server = http.createServer(async (req, res) => {
 
   res.writeHead(404, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ error: "Not found" }));
+});
+
+setPtyStatusCallback((evt) => {
+  broadcastEvent("pty_status", evt);
 });
 
 attachPtyWebSocket(server);

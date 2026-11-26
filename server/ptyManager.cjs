@@ -9,6 +9,24 @@ const SESSIONS_DIR = "/home/fidel/.pi/agent/sessions/--home-fidel--";
 const MAX_BUFFER_BYTES = 128 * 1024; // 128 KB rolling ANSI buffer for instant minimize/reopen
 
 const ptySessions = new Map();
+let statusCallback = null;
+
+function setPtyStatusCallback(cb) {
+  statusCallback = cb;
+}
+
+function sendInputToPty(nodeId, data) {
+  const entry = ptySessions.get(nodeId);
+  if (!entry || !entry.proc || !entry.proc.stdin || !entry.proc.stdin.writable) {
+    return false;
+  }
+  try {
+    entry.proc.stdin.write(data);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function encodeWsFrame(payloadBuf, opcode = 0x1) {
   const len = payloadBuf.length;
@@ -91,6 +109,25 @@ function getOrSpawnPty({ nodeId, cwd, sessionFile, cols = 120, rows = 34, restar
     bufferChunks: [],
     bufferSize: 0,
     startedAt: Date.now(),
+    isWorking: false,
+    idleTimer: null,
+  };
+
+  const setEntryWorking = (working) => {
+    if (entry.isWorking === working) return;
+    entry.isWorking = working;
+    if (typeof statusCallback === "function") {
+      try {
+        statusCallback({
+          nodeId: entry.nodeId,
+          sessionFile: entry.sessionFile ? path.basename(entry.sessionFile) : "",
+          cwd: entry.cwd,
+          status: working ? "WORKING" : "IDLE",
+        });
+      } catch {
+        // ignore
+      }
+    }
   };
 
   const appendToBuffer = (str) => {
@@ -106,6 +143,16 @@ function getOrSpawnPty({ nodeId, cwd, sessionFile, cols = 120, rows = 34, restar
   const broadcastOutput = (chunk) => {
     const str = chunk.toString("utf-8");
     appendToBuffer(str);
+
+    // Detect live Pi TUI activity (streaming output / spinner) -> mark node WORKING, settle to IDLE after 2.5s quiet
+    if (str.length > 8) {
+      setEntryWorking(true);
+      if (entry.idleTimer) clearTimeout(entry.idleTimer);
+      entry.idleTimer = setTimeout(() => {
+        setEntryWorking(false);
+      }, 2500);
+    }
+
     const frame = encodeWsFrame(Buffer.from(JSON.stringify({ type: "output", data: str }), "utf-8"), 0x1);
     for (const sock of entry.clients) {
       if (!sock.destroyed && sock.writable) {
@@ -125,6 +172,8 @@ function getOrSpawnPty({ nodeId, cwd, sessionFile, cols = 120, rows = 34, restar
 
   proc.on("exit", (code) => {
     console.log(`[Axon Native PTY] Process exited for [${nodeId}] (code=${code})`);
+    if (entry.idleTimer) clearTimeout(entry.idleTimer);
+    setEntryWorking(false);
     const exitMsg = `\r\n\x1b[33m[Pi session exited (code ${code ?? 0}). Click "Restart Pi" to launch again.]\x1b[0m\r\n`;
     broadcastOutput(Buffer.from(exitMsg, "utf-8"));
     ptySessions.delete(nodeId);
@@ -274,5 +323,7 @@ function attachPtyWebSocket(httpServer) {
 module.exports = {
   attachPtyWebSocket,
   killPtySession,
+  sendInputToPty,
+  setPtyStatusCallback,
   getActivePtyCount: () => ptySessions.size,
 };

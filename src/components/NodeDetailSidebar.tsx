@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAxonStore, AVAILABLE_SKILLS } from '../store/axonStore';
 import type { GraphEntity } from '../types/axon';
 import { 
@@ -83,10 +83,22 @@ export const NodeDetailSidebar: React.FC = () => {
     return '/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning';
   };
 
-  // Flexible Skill Injection States
+  // Flexible Skill Injection States (live-loaded from C:\Users\Pongo\Axon-Studio\pi-data\skills)
+  const [localSkills, setLocalSkills] = useState(AVAILABLE_SKILLS);
   const [customSkillInput, setCustomSkillInput] = useState('');
   const [activeSkillsQueue, setActiveSkillsQueue] = useState<string[]>(['antislop-ui']);
   const [injectionSuccessMsg, setInjectionSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('http://127.0.0.1:1425/api/skills/list')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.skills) && data.skills.length > 0) {
+          setLocalSkills(data.skills);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Per-session inline skill input state
   const [addingSkillToSessionId, setAddingSkillToSessionId] = useState<string | null>(null);
@@ -660,7 +672,7 @@ export const NodeDetailSidebar: React.FC = () => {
         <div className="space-y-1">
           <div className="text-[10px] font-mono text-[#94a3b8]">Quick Suggest (Local Skills & Top Repos):</div>
           <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
-            {AVAILABLE_SKILLS.map((skill) => {
+            {localSkills.map((skill) => {
               const isQueued = activeSkillsQueue.includes(skill.id);
               return (
                 <button
