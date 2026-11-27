@@ -21,6 +21,7 @@ const {
 } = require(`/home/fidel/.pi/agent/install/releases/${PI_CURRENT_VERSION}/node_modules/@earendil-works/pi-coding-agent`);
 
 const PORT = 1425;
+const SESSIONS_ROOT = "/home/fidel/.pi/agent/sessions";
 const SESSIONS_DIR = "/home/fidel/.pi/agent/sessions/--home-fidel--";
 const activeSessions = new Map();
 const servicesCache = new Map();
@@ -40,6 +41,8 @@ const TELEGRAM_BOT_TOKEN =
   process.env.JARVIS_BOT_TOKEN || "9066504208:AAFHUFWIAW00z2Zk6snbGv2xP7lCEs7yH1k";
 const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
 const TELEGRAM_OWNER_FILE = path.join(os.homedir(), ".pi", "agent", "telegram_owner.json");
+const ADB_BIN = "/mnt/c/Users/Pongo/AppData/Local/Android/Sdk/platform-tools/adb.exe";
+const ANDROID_PROJECT_ROOT = "/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning";
 
 const AXON_NODES = {
   "hub-main": {
@@ -107,26 +110,55 @@ function normalizeUserPath(rawPath) {
   return p;
 }
 
-function listRecentPiSessions(limit = 30) {
-  if (!fs.existsSync(SESSIONS_DIR)) return [];
-  const files = fs
-    .readdirSync(SESSIONS_DIR)
-    .filter((f) => f.endsWith(".jsonl"))
-    .map((f) => {
-      const full = path.join(SESSIONS_DIR, f);
-      const st = fs.statSync(full);
-      return { file: f, full, mtimeMs: st.mtimeMs, sizeKb: Math.max(1, Math.round(st.size / 1024)) };
+function getAllSessionFiles() {
+  const results = [];
+  if (!fs.existsSync(SESSIONS_ROOT)) return results;
+  try {
+    const entries = fs.readdirSync(SESSIONS_ROOT, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name === "archive") continue;
+      const dirPath = path.join(SESSIONS_ROOT, entry.name);
+      try {
+        const files = fs.readdirSync(dirPath).filter((f) => f.endsWith(".jsonl"));
+        for (const fileName of files) {
+          results.push({
+            fileName,
+            fullPath: path.join(dirPath, fileName),
+            dirName: entry.name,
+          });
+        }
+      } catch {}
+    }
+  } catch {}
+  return results;
+}
+
+function listRecentPiSessions(limit = 120) {
+  const files = getAllSessionFiles()
+    .map((item) => {
+      try {
+        const st = fs.statSync(item.fullPath);
+        return {
+          file: item.fileName,
+          full: item.fullPath,
+          mtimeMs: st.mtimeMs,
+          sizeKb: Math.max(1, Math.round(st.size / 1024)),
+        };
+      } catch {
+        return null;
+      }
     })
+    .filter(Boolean)
     .sort((a, b) => b.mtimeMs - a.mtimeMs)
     .slice(0, limit);
 
   return files.map((item) => {
-    let cwd = "/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning";
+    let cwd = "/home/fidel";
     let name = item.file.replace(/\.jsonl$/, "").slice(-12);
     try {
-      const head = fs.readFileSync(item.full, "utf-8").slice(0, 3000);
-      const lines = head.split("\n").filter((l) => l.trim());
-      for (const line of lines.slice(0, 10)) {
+      const raw = fs.readFileSync(item.full, "utf-8");
+      const lines = raw.split("\n").filter((l) => l.trim());
+      for (const line of lines) {
         try {
           const obj = JSON.parse(line);
           if (obj.type === "session" && obj.cwd) cwd = obj.cwd;
@@ -138,6 +170,8 @@ function listRecentPiSessions(limit = 30) {
     return {
       nodeId: `sess:${item.file.replace(/\.jsonl$/, "")}`,
       file: item.file,
+      fullPath: item.full,
+      name,
       label: `${name} [${folder}]`,
       cwd,
       sizeKb: item.sizeKb,
@@ -150,29 +184,12 @@ function getActiveNodeConfig(nodeId = telegramActiveNode) {
   return AXON_NODES["hub-main"];
 }
 
-function getNodesKeyboard() {
-  const rows = Object.entries(AXON_NODES).map(([id, info]) => {
-    const folder = path.basename(info.cwd) || info.cwd;
-    return [
-      {
-        text: `${id === telegramActiveNode ? "[AKTIF] " : ""}${info.label} • /${folder}`,
-        callback_data: `axon_node:${id}`,
-      },
-    ];
-  });
-  rows.push([
-    {
-      text: ">> Pilih dari Real Pi Sessions (.jsonl) <<",
-      callback_data: "axon_sessions:0",
-    },
-  ]);
-  return { inline_keyboard: rows };
-}
-
 function getSessionsPageKeyboard(page = 0) {
   const pageSize = 8;
-  cachedSessionList = listRecentPiSessions(32);
-  const start = page * pageSize;
+  cachedSessionList = listRecentPiSessions(200);
+  const totalPages = Math.max(1, Math.ceil(cachedSessionList.length / pageSize));
+  const curPage = Math.max(0, Math.min(page, totalPages - 1));
+  const start = curPage * pageSize;
   const slice = cachedSessionList.slice(start, start + pageSize);
 
   const rows = slice.map((s, idx) => [
@@ -183,13 +200,52 @@ function getSessionsPageKeyboard(page = 0) {
   ]);
 
   const nav = [];
-  if (page > 0) nav.push({ text: "< Prev", callback_data: `axon_sessions:${page - 1}` });
-  nav.push({ text: "Workspaces", callback_data: "axon_workspaces" });
-  if (start + pageSize < cachedSessionList.length) {
-    nav.push({ text: "Next >", callback_data: `axon_sessions:${page + 1}` });
+  if (curPage > 0) nav.push({ text: "< Prev", callback_data: `axon_sessions:${curPage - 1}` });
+  nav.push({ text: `Refresh (${curPage + 1}/${totalPages})`, callback_data: `axon_sessions:${curPage}` });
+  if (curPage < totalPages - 1) {
+    nav.push({ text: "Next >", callback_data: `axon_sessions:${curPage + 1}` });
   }
   rows.push(nav);
-  return { inline_keyboard: rows };
+  rows.push([
+    { text: "Preview Emulator", callback_data: "action:preview" },
+    { text: "Download APK", callback_data: "action:apk" },
+  ]);
+  return { inline_keyboard: rows, total: cachedSessionList.length, curPage, totalPages };
+}
+
+function tgSendPhoto(chatId, imageBuffer, caption = "") {
+  return new Promise((resolve) => {
+    const tmpImg = path.join(os.tmpdir(), `tg_img_${Date.now()}.png`);
+    try {
+      fs.writeFileSync(tmpImg, imageBuffer);
+      const cp = spawn("curl", [
+        "-4",
+        "-s",
+        "-m",
+        "45",
+        "-X",
+        "POST",
+        `${TELEGRAM_API}/sendPhoto`,
+        "-F",
+        `chat_id=${chatId}`,
+        "-F",
+        `caption=${caption}`,
+        "-F",
+        `photo=@${tmpImg}`,
+      ]);
+      cp.on("close", (code) => {
+        try { fs.unlinkSync(tmpImg); } catch {}
+        resolve(code === 0);
+      });
+      cp.on("error", () => {
+        try { fs.unlinkSync(tmpImg); } catch {}
+        resolve(false);
+      });
+    } catch {
+      try { fs.unlinkSync(tmpImg); } catch {}
+      resolve(false);
+    }
+  });
 }
 
 function tgDownloadFileBase64(fileId) {
@@ -286,20 +342,25 @@ function broadcastEvent(type, data) {
 }
 
 function findSessionFile(lookupId) {
-  if (!lookupId || !fs.existsSync(SESSIONS_DIR)) return null;
-  const files = fs.readdirSync(SESSIONS_DIR).filter((f) => f.endsWith(".jsonl"));
+  if (!lookupId || !fs.existsSync(SESSIONS_ROOT)) return null;
+  const raw = String(lookupId).trim();
+  if (path.isAbsolute(raw) && fs.existsSync(raw) && raw.endsWith(".jsonl")) {
+    return raw;
+  }
 
-  // Direct filename or UUID match
-  let match = files.find((f) => f === lookupId || f.includes(lookupId));
-  if (match) return path.join(SESSIONS_DIR, match);
+  const allFiles = getAllSessionFiles();
+
+  // Direct filename or UUID match across all Pi session folders
+  const match = allFiles.find((f) => f.fileName === raw || f.fileName.includes(raw));
+  if (match) return match.fullPath;
 
   // Fallback by role/name prefix in session_info
-  const cleanName = lookupId.toLowerCase();
-  for (const f of files.slice().reverse()) {
+  const cleanName = raw.toLowerCase();
+  for (const item of allFiles.slice().reverse()) {
     try {
-      const head = fs.readFileSync(path.join(SESSIONS_DIR, f), "utf-8").slice(0, 1200);
+      const head = fs.readFileSync(item.fullPath, "utf-8").slice(0, 1200);
       if (head.toLowerCase().includes(cleanName)) {
-        return path.join(SESSIONS_DIR, f);
+        return item.fullPath;
       }
     } catch {
       // skip unreadable
@@ -887,26 +948,19 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 2b. Live Pi Sessions Catalog (reads ~/.pi/agent/sessions/--home-fidel--/*.jsonl directly)
+  // 2b. Live Pi Sessions Catalog (reads ALL ~/.pi/agent/sessions/*/*.jsonl directly)
   if (url.pathname === "/api/sessions" && req.method === "GET") {
     try {
-      if (!fs.existsSync(SESSIONS_DIR)) {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ sessions: [] }));
-        return;
-      }
-
-      const files = fs.readdirSync(SESSIONS_DIR).filter((f) => f.endsWith(".jsonl"));
+      const allFiles = getAllSessionFiles();
       const list = [];
 
-      for (const fileName of files) {
+      for (const item of allFiles) {
         try {
-          const fullPath = path.join(SESSIONS_DIR, fileName);
-          const stat = fs.statSync(fullPath);
-          const meta = extractSessionMeta(fullPath, fileName, stat);
+          const stat = fs.statSync(item.fullPath);
+          const meta = extractSessionMeta(item.fullPath, item.fileName, stat);
           list.push({
-            id: fileName.replace(/\.jsonl$/, ""),
-            fileName,
+            id: item.fileName.replace(/\.jsonl$/, ""),
+            fileName: item.fileName,
             name: meta.name,
             category: meta.category,
             cwd: meta.cwd,
@@ -998,11 +1052,9 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const safeBase = path.basename(String(fileName || `${id}.jsonl`));
-      const targetPath = safeBase.endsWith(".jsonl")
-        ? path.join(SESSIONS_DIR, safeBase)
-        : findSessionFile(id || safeBase);
+      const targetPath = findSessionFile(safeBase) || findSessionFile(id);
 
-      if (!targetPath || !fs.existsSync(targetPath) || !path.resolve(targetPath).startsWith(path.resolve(SESSIONS_DIR))) {
+      if (!targetPath || !fs.existsSync(targetPath) || !path.resolve(targetPath).startsWith(path.resolve(SESSIONS_ROOT))) {
         res.writeHead(404, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: false, error: "Session file not found on disk" }));
         return;
@@ -1030,11 +1082,9 @@ const server = http.createServer(async (req, res) => {
     try {
       const { fileName, id } = await readJsonBody(req);
       const safeBase = path.basename(String(fileName || `${id}.jsonl`));
-      const targetPath = safeBase.endsWith(".jsonl")
-        ? path.join(SESSIONS_DIR, safeBase)
-        : findSessionFile(id || safeBase);
+      const targetPath = findSessionFile(safeBase) || findSessionFile(id);
 
-      if (!targetPath || !fs.existsSync(targetPath) || !path.resolve(targetPath).startsWith(path.resolve(SESSIONS_DIR))) {
+      if (!targetPath || !fs.existsSync(targetPath) || !path.resolve(targetPath).startsWith(path.resolve(SESSIONS_ROOT))) {
         res.writeHead(404, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: false, error: "Session file not found on disk" }));
         return;
@@ -1259,26 +1309,41 @@ const server = http.createServer(async (req, res) => {
     try {
       const skillsDir = "/home/fidel/.pi/agent/skills";
       const result = [];
+      const seenRealPaths = new Set();
+      const seenNames = new Set();
       if (fs.existsSync(skillsDir)) {
         const dirs = fs.readdirSync(skillsDir, { withFileTypes: true });
         for (const d of dirs) {
           if (!d.isDirectory() && !d.isSymbolicLink()) continue;
           const skillMd = path.join(skillsDir, d.name, "SKILL.md");
+          if (!fs.existsSync(skillMd)) continue;
+
+          // Deduplicate symlinks pointing to the exact same SKILL.md (e.g. blender-bridge aliases)
+          let realSkillMd = skillMd;
+          try {
+            realSkillMd = fs.realpathSync(skillMd);
+          } catch {
+            // ignore
+          }
+          if (seenRealPaths.has(realSkillMd)) continue;
+
           let description = `Installed skill (${d.name})`;
           let displayName = d.name;
-          if (fs.existsSync(skillMd)) {
-            try {
-              const content = fs.readFileSync(skillMd, "utf-8").slice(0, 1200);
-              const descMatch = content.match(/^description:\s*(.+)$/m);
-              if (descMatch) description = descMatch[1].trim().replace(/^["']|["']$/g, "");
-              const nameMatch = content.match(/^name:\s*(.+)$/m);
-              if (nameMatch) displayName = nameMatch[1].trim().replace(/^["']|["']$/g, "");
-            } catch {
-              // ignore
-            }
+          try {
+            const content = fs.readFileSync(skillMd, "utf-8").slice(0, 1200);
+            const descMatch = content.match(/^description:\s*(.+)$/m);
+            if (descMatch) description = descMatch[1].trim().replace(/^["']|["']$/g, "");
+            const nameMatch = content.match(/^name:\s*(.+)$/m);
+            if (nameMatch) displayName = nameMatch[1].trim().replace(/^["']|["']$/g, "");
+          } catch {
+            // ignore
           }
+          if (seenNames.has(displayName)) continue;
+
+          seenRealPaths.add(realSkillMd);
+          seenNames.add(displayName);
           result.push({
-            id: d.name,
+            id: displayName,
             name: displayName,
             description,
             category: "system",
@@ -1665,10 +1730,98 @@ async function dispatchTelegramPrompt(chatId, nodeId, promptText, images = []) {
   }
 }
 
+async function handleTelegramPreview(chatId) {
+  await tgSendText(chatId, "Mengambil screenshot emulator Android Studio...");
+  try {
+    const imgBuf = execFileSync(ADB_BIN, ["exec-out", "screencap", "-p"], {
+      timeout: 15000,
+      maxBuffer: 20 * 1024 * 1024,
+    });
+    if (imgBuf && imgBuf.length > 1000) {
+      await tgSendPhoto(
+        chatId,
+        imgBuf,
+        `Live Preview Emulator (${new Date().toLocaleTimeString("id-ID")})`
+      );
+    } else {
+      await tgSendText(chatId, "Gagal mengambil layar emulator. Pastikan emulator sedang menyala.");
+    }
+  } catch (err) {
+    await tgSendText(chatId, `Error ADB: ${err.message}`);
+  }
+}
+
+async function handleTelegramApk(chatId) {
+  const apkPath = path.join(ANDROID_PROJECT_ROOT, "app", "build", "outputs", "apk", "debug", "app-debug.apk");
+  if (!fs.existsSync(apkPath)) {
+    await tgSendText(chatId, "File APK belum ada, memulai build (./gradlew assembleDebug)...");
+    try {
+      execFileSync("./gradlew", ["assembleDebug", "--no-daemon"], {
+        cwd: ANDROID_PROJECT_ROOT,
+        timeout: 180000,
+      });
+    } catch (err) {
+      await tgSendText(chatId, `Build APK gagal: ${err.message}`);
+      return;
+    }
+  }
+
+  await tgSendText(chatId, "Mengunggah APK debug untuk link download...");
+  try {
+    const uploadRes = execFileSync(
+      "curl",
+      ["-4", "-s", "-m", "60", "-F", `file=@${apkPath};filename=HaloHanzi-debug.apk`, "https://tmpfiles.org/api/v1/upload"],
+      { encoding: "utf-8", timeout: 65000 }
+    );
+    const data = JSON.parse(uploadRes);
+    if (data?.status === "success" && data?.data?.url) {
+      const dlUrl = data.data.url.replace("tmpfiles.org/", "tmpfiles.org/dl/");
+      await tgSendText(chatId, `HaloHanzi Debug APK siap diunduh:\n${dlUrl}`);
+      return;
+    }
+  } catch (err) {
+    console.error("[Axon Telegram] APK upload error:", err.message);
+  }
+  await tgSendText(chatId, `APK tersedia di laptop:\n${apkPath}`);
+}
+
+function createRealPiSessionFile(name, cwd) {
+  fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+  const now = new Date();
+  const isoSafe = now.toISOString().replace(/[:.]/g, "-");
+  const randId = Math.random().toString(16).slice(2, 10) + "-" + Date.now().toString(16);
+  const fileName = `${isoSafe}_${randId}.jsonl`;
+  const fullPath = path.join(SESSIONS_DIR, fileName);
+  const sessionCwd = cwd ? normalizeUserPath(cwd) : "/mnt/c/Users/Pongo";
+
+  const headerLine = JSON.stringify({
+    type: "session",
+    version: 3,
+    id: randId,
+    timestamp: now.toISOString(),
+    cwd: sessionCwd,
+  });
+  const infoLine = JSON.stringify({
+    type: "session_info",
+    id: `info-${Date.now().toString(16)}`,
+    timestamp: now.toISOString(),
+    name: String(name).trim(),
+  });
+
+  fs.writeFileSync(fullPath, `${headerLine}\n${infoLine}\n`, "utf-8");
+  return {
+    nodeId: `sess:${fileName.replace(/\.jsonl$/, "")}`,
+    fileName,
+    fullPath,
+    name: String(name).trim(),
+    cwd: sessionCwd,
+  };
+}
+
 async function handleTelegramUpdate(update) {
   const ownerChatId = getTelegramOwnerChatId();
 
-  // Handle inline keyboard callbacks (node switch & real Pi session browser)
+  // Handle inline keyboard callbacks (Unified Pi Sessions in Axon)
   if (update.callback_query) {
     const cb = update.callback_query;
     const chatId = cb.message?.chat?.id;
@@ -1678,25 +1831,18 @@ async function handleTelegramUpdate(update) {
     await tgCurlJson("answerCallbackQuery", { callback_query_id: cb.id }, 10);
     const data = cb.data || "";
 
-    if (data === "axon_workspaces") {
-      const cur = getActiveNodeConfig();
-      await tgCurlJson("editMessageText", {
-        chat_id: chatId,
-        message_id: messageId,
-        text: `Pilih Workspace / Role Axon:\n\nTarget saat ini: ${cur.label}\nPath: ${cur.cwd}`,
-        reply_markup: getNodesKeyboard(),
-      }, 15);
-      return;
-    }
-
     if (data.startsWith("axon_sessions:")) {
       const page = parseInt(data.split(":")[1] || "0", 10) || 0;
       const cur = getActiveNodeConfig();
+      const kb = getSessionsPageKeyboard(page);
       await tgCurlJson("editMessageText", {
         chat_id: chatId,
         message_id: messageId,
-        text: `Pilih Sesi Pi Asli (.jsonl) — Halaman ${page + 1}:\n\nTarget saat ini: ${cur.label}\nPath: ${cur.cwd}`,
-        reply_markup: getSessionsPageKeyboard(page),
+        text:
+          `Daftar Sesi Pi / Axon (${kb.total} sesi) — Hlm ${kb.curPage + 1}/${kb.totalPages}\n\n` +
+          `Sesi Aktif: ${cur.label}\n` +
+          `Path: ${cur.cwd}`,
+        reply_markup: { inline_keyboard: kb.inline_keyboard },
       }, 15);
       return;
     }
@@ -1708,34 +1854,28 @@ async function handleTelegramUpdate(update) {
         AXON_NODES[chosen.nodeId] = {
           label: chosen.label,
           cwd: chosen.cwd,
-          sessionId: chosen.file,
+          sessionId: chosen.fullPath || chosen.file,
         };
         telegramActiveNode = chosen.nodeId;
         await tgSendText(
           chatId,
-          `Target Axon dipindahkan ke Sesi Pi:\n` +
+          `Sesi aktif dipindahkan ke:\n` +
             `Sesi: ${chosen.label}\n` +
-            `Path: ${chosen.cwd}\n` +
-            `File: ${chosen.file}\n\n` +
-            `Semua prompt berikutnya akan dikirim ke sesi & path ini.`
+            `Path: ${chosen.cwd}\n\n` +
+            `Semua prompt & foto berikutnya akan dikirim ke sesi ini melalui Axon (sinkron dengan database Pi).`
         );
       }
       return;
     }
 
-    if (data.startsWith("axon_node:")) {
-      const nextNode = data.replace("axon_node:", "");
-      if (AXON_NODES[nextNode]) {
-        telegramActiveNode = nextNode;
-        const info = AXON_NODES[nextNode];
-        await tgSendText(
-          chatId,
-          `Target Axon dipindahkan ke:\n` +
-            `Node: ${info.label} (${nextNode})\n` +
-            `Path: ${info.cwd}\n\n` +
-            `Semua prompt berikutnya akan dikirim ke path ini.`
-        );
-      }
+    if (data === "action:preview") {
+      await handleTelegramPreview(chatId);
+      return;
+    }
+
+    if (data === "action:apk") {
+      await handleTelegramApk(chatId);
+      return;
     }
     return;
   }
@@ -1757,65 +1897,94 @@ async function handleTelegramUpdate(update) {
   // 1. /start or /help
   if (text === "/start" || text === "/help") {
     const info = getActiveNodeConfig();
+    const kb = getSessionsPageKeyboard(0);
     await tgSendText(
       chatId,
-      `Jarvis x Axon Studio Bridge AKTIF.\n\n` +
-        `Target Aktif: ${info.label}\n` +
-        `Path: ${info.cwd}\n\n` +
-        `Perintah Tersedia:\n` +
-        `/sessions (atau /menu, /nodes, /switch) - Pilih Workspace / Sesi Pi asli\n` +
-        `/newsession <path> - Buat sesi baru di folder Windows/WSL tertentu\n` +
-        `/status - Cek target aktif, path, dan status Axon Bridge\n` +
-        `/abort (atau /stop) - Hentikan paksa eksekusi berjalan (seperti Esc)\n` +
+      `Jarvis x Axon Bridge (Database Sesi Pi Terpadu)\n\n` +
+        `Sesi Aktif: ${info.label}\n` +
+        `Path: ${info.cwd}\n` +
+        `Total Sesi Pi: ${kb.total}\n\n` +
+        `Perintah:\n` +
+        `/sessions - Lihat & pilih seluruh sesi Pi di Axon\n` +
+        `/new <nama> [| path] - Buat sesi Pi baru\n` +
+        `/status - Cek sesi aktif & status Axon Bridge\n` +
+        `/abort - Hentikan paksa eksekusi Pi berjalan (Esc)\n` +
         `/compact - Ringkas memori sesi aktif\n` +
-        `/dev1 /dev2 /designer /qa /axon /matcha /hub [prompt] - Pindah atau kirim cepat ke role/project\n\n` +
-        `Atau langsung kirim teks/foto apa saja untuk dieksekusi di Path aktif!`,
-      getNodesKeyboard()
+        `/preview - Screenshot live Emulator Android\n` +
+        `/apk - Build & link download APK HaloHanzi\n\n` +
+        `Kirim teks atau foto biasa untuk langsung mengeksekusi di sesi aktif.`,
+      { inline_keyboard: kb.inline_keyboard }
     );
     return;
   }
 
-  // 2. Session & Workspace Selector (all WezTerm aliases supported)
+  // 2. Unified Pi / Axon Sessions List
   if (
     ["/session", "/sessions", "/menu", "/roles", "/switch", "/project", "/projects", "/nodes"].includes(
       text.toLowerCase()
     )
   ) {
     const info = getActiveNodeConfig();
+    const kb = getSessionsPageKeyboard(0);
     await tgSendText(
       chatId,
-      `Pilih Workspace / Sesi Axon:\n\nTarget saat ini: ${info.label}\nPath: ${info.cwd}`,
-      getNodesKeyboard()
+      `Daftar Sesi Pi / Axon (${kb.total} sesi) — Hlm 1/${kb.totalPages}\n\n` +
+        `Sesi Aktif: ${info.label}\n` +
+        `Path: ${info.cwd}`,
+      { inline_keyboard: kb.inline_keyboard }
     );
     return;
   }
 
-  // 3. /newsession <path> (aliases: /new_session, /newtab, /newproject)
-  if (/^\/(newsession|new_session|newtab|newproject)\b/i.test(text)) {
-    const arg = text.replace(/^\/(newsession|new_session|newtab|newproject)\s*/i, "").trim();
+  // 3. /new <nama> [| path] (aliases: /newsession, /new_session, /newproject)
+  if (/^\/(new|newsession|new_session|newtab|newproject)\b/i.test(text)) {
+    const arg = text.replace(/^\/(new|newsession|new_session|newtab|newproject)\s*/i, "").trim();
     if (!arg) {
       await tgSendText(
         chatId,
-        `Format: /newsession <path>\nContoh:\n/newsession /mnt/c/Users/Pongo/axon\natau\n/newsession C:\\Users\\Pongo\\matcha-showcase`
+        `Format:\n` +
+          `/new <nama sesi>\n` +
+          `atau\n` +
+          `/new <nama sesi> | <path folder>\n\n` +
+          `Contoh:\n` +
+          `/new riset-ui\n` +
+          `/new axon-fix | C:\\Users\\Pongo\\axon`
       );
       return;
     }
-    const targetPath = normalizeUserPath(arg);
+
+    let sessionName = arg;
+    let targetPath = "/mnt/c/Users/Pongo";
+
+    if (arg.includes("|")) {
+      const [n, p] = arg.split("|").map((s) => s.trim());
+      sessionName = n || "Sesi Baru";
+      targetPath = normalizeUserPath(p || "/mnt/c/Users/Pongo");
+    } else if (/^(\/|[a-zA-Z]:[\\/])/.test(arg)) {
+      targetPath = normalizeUserPath(arg);
+      sessionName = path.basename(targetPath) || "Sesi Baru";
+    }
+
     if (!fs.existsSync(targetPath)) {
       await tgSendText(chatId, `Folder tidak ditemukan:\n${targetPath}`);
       return;
     }
-    const folderName = path.basename(targetPath) || "custom";
-    const newId = `custom-${folderName}-${Date.now().toString(36)}`;
-    AXON_NODES[newId] = {
-      label: `Custom (${folderName})`,
-      cwd: targetPath,
-      sessionId: newId,
+
+    const created = createRealPiSessionFile(sessionName, targetPath);
+    const folderName = path.basename(created.cwd) || created.cwd;
+    AXON_NODES[created.nodeId] = {
+      label: `${created.name} [${folderName}]`,
+      cwd: created.cwd,
+      sessionId: created.fullPath,
     };
-    telegramActiveNode = newId;
+    telegramActiveNode = created.nodeId;
     await tgSendText(
       chatId,
-      `Sesi Axon baru siap & aktif:\nNode: Custom (${folderName})\nPath: ${targetPath}\n\nLangsung kirim prompt untuk mulai bekerja di folder ini.`
+      `Sesi Pi baru dibuat & aktif di Axon:\n` +
+        `Sesi: ${created.name} [${folderName}]\n` +
+        `Path: ${created.cwd}\n` +
+        `File: ${created.fileName}\n\n` +
+        `Langsung kirim prompt untuk mulai bekerja.`
     );
     return;
   }
@@ -1823,14 +1992,26 @@ async function handleTelegramUpdate(update) {
   // 4. /status
   if (text === "/status") {
     const info = getActiveNodeConfig();
+    const totalSessions = getAllSessionFiles().length;
     await tgSendText(
       chatId,
       `Axon Bridge: ONLINE (port ${PORT})\n` +
-        `Target Aktif: ${info.label} (${telegramActiveNode})\n` +
+        `Sesi Aktif: ${info.label}\n` +
         `Path: ${info.cwd}\n` +
-        `Session ID: ${info.sessionId || "-"}\n` +
-        `Sesi Pi termuat di RAM: ${activeSessions.size}`
+        `Total Sesi Pi (Disk): ${totalSessions}\n` +
+        `Sesi termuat di RAM: ${activeSessions.size}`
     );
+    return;
+  }
+
+  // 4b. /preview & /apk
+  if (text.toLowerCase() === "/preview") {
+    await handleTelegramPreview(chatId);
+    return;
+  }
+
+  if (text.toLowerCase() === "/apk") {
+    await handleTelegramApk(chatId);
     return;
   }
 
@@ -1846,7 +2027,7 @@ async function handleTelegramUpdate(update) {
     }
     telegramPendingReplies.delete(nodeId);
     broadcastEvent("agent_aborted", { nodeId });
-    await tgSendText(chatId, `[ABORTED] Eksekusi dihentikan paksa.\nTarget: ${info.label}\nPath: ${info.cwd}`);
+    await tgSendText(chatId, `[ABORTED] Eksekusi dihentikan paksa.\nSesi: ${info.label}\nPath: ${info.cwd}`);
     return;
   }
 
@@ -1860,11 +2041,11 @@ async function handleTelegramUpdate(update) {
         await session.compact().catch(() => {});
       }
     }
-    await tgSendText(chatId, `[COMPACT] Memori sesi diringkas.\nTarget: ${info.label}\nPath: ${info.cwd}`);
+    await tgSendText(chatId, `[COMPACT] Memori sesi diringkas.\nSesi: ${info.label}\nPath: ${info.cwd}`);
     return;
   }
 
-  // 7. Quick role/workspace shortcuts: /dev1, /dev2, /designer, /qa, /axon, /matcha, /hub
+  // 7. Legacy/silent quick shortcuts: /dev1, /dev2, /designer, /qa, /axon, /matcha, /hub
   const firstWord = text.split(/\s+/)[0].toLowerCase();
   if (ROLE_ALIASES[firstWord]) {
     const targetNodeId = ROLE_ALIASES[firstWord];
@@ -1875,7 +2056,7 @@ async function handleTelegramUpdate(update) {
     if (!restPrompt && !hasPhoto) {
       await tgSendText(
         chatId,
-        `Target Axon dipindahkan ke:\nNode: ${info.label} (${targetNodeId})\nPath: ${info.cwd}`
+        `Target dipindahkan ke:\nSesi: ${info.label}\nPath: ${info.cwd}`
       );
       return;
     }
@@ -1890,20 +2071,16 @@ async function handleTelegramUpdate(update) {
     return;
   }
 
-  // 8. /node <id>
-  if (text.startsWith("/node ")) {
-    const reqNode = text.slice(6).trim();
-    if (AXON_NODES[reqNode]) {
-      telegramActiveNode = reqNode;
-      const info = AXON_NODES[reqNode];
-      await tgSendText(chatId, `Target aktif diubah ke:\nNode: ${info.label} (${reqNode})\nPath: ${info.cwd}`);
-    } else {
-      await tgSendText(chatId, `Node tidak dikenal: ${reqNode}`, getNodesKeyboard());
-    }
+  // Unknown slash command guard
+  if (text.startsWith("/") && !hasPhoto) {
+    await tgSendText(
+      chatId,
+      `Perintah tidak dikenal: ${firstWord}\nKetik /sessions untuk daftar sesi Pi/Axon atau /help untuk bantuan.`
+    );
     return;
   }
 
-  // 9. Normal chat or photo -> dispatch to active Axon node
+  // 8. Normal chat or photo -> dispatch directly to active Pi session via Axon
   const images = [];
   if (hasPhoto) {
     const bestPhoto = msg.photo[msg.photo.length - 1];
@@ -1921,26 +2098,22 @@ async function handleTelegramUpdate(update) {
 
 async function startTelegramBridge() {
   if (!TELEGRAM_BOT_TOKEN) return;
-  console.log("[Axon Telegram] Starting Jarvis <-> Axon 2-Way Bridge...");
+  console.log("[Axon Telegram] Starting Jarvis x Axon Bridge (Unified Pi Sessions)...");
   let offset = 0;
 
-  // Register Telegram slash command menu so typing / shows all Axon commands
+  // Register clean, Axon-focused Telegram slash command menu
   tgCurlJson(
     "setMyCommands",
     {
       commands: [
-        { command: "sessions", description: "Pilih Workspace atau Sesi Pi (.jsonl)" },
-        { command: "status", description: "Cek target aktif, path, dan status Axon" },
-        { command: "newsession", description: "Buat sesi baru di path folder tertentu" },
-        { command: "axon", description: "Pindah/kirim prompt ke Axon Studio" },
-        { command: "matcha", description: "Pindah/kirim prompt ke Matcha Showcase" },
-        { command: "dev1", description: "Pindah/kirim prompt ke Dev 1 (Belajar)" },
-        { command: "dev2", description: "Pindah/kirim prompt ke Dev 2 (Cerita)" },
-        { command: "designer", description: "Pindah/kirim prompt ke Designer (Aset)" },
-        { command: "qa", description: "Pindah/kirim prompt ke QA & Tester" },
-        { command: "abort", description: "Hentikan paksa eksekusi berjalan (Esc)" },
+        { command: "sessions", description: "Lihat & pilih seluruh sesi Pi di Axon" },
+        { command: "new", description: "Buat sesi Pi baru (/new <nama> [| path])" },
+        { command: "status", description: "Cek sesi aktif & status Axon Bridge" },
+        { command: "abort", description: "Hentikan paksa eksekusi Pi berjalan (Esc)" },
         { command: "compact", description: "Ringkas memori sesi aktif" },
-        { command: "help", description: "Bantuan & daftar perintah Jarvis x Axon" },
+        { command: "preview", description: "Screenshot live Emulator Android" },
+        { command: "apk", description: "Build & kirim link download APK HaloHanzi" },
+        { command: "help", description: "Bantuan & daftar perintah Jarvis" },
       ],
     },
     10

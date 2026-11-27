@@ -88,8 +88,8 @@ export const NodeDetailSidebar: React.FC = () => {
     return '/mnt/c/Users/Pongo';
   };
 
-  // Flexible Skill Injection States (live-loaded from C:\Users\Pongo\Axon-Studio\pi-data\skills)
-  const [localSkills, setLocalSkills] = useState(AVAILABLE_SKILLS);
+  // Flexible Skill Injection States (ONLY live-loaded from C:\Users\Pongo\Axon-Studio\pi-data\skills)
+  const [localSkills, setLocalSkills] = useState<typeof AVAILABLE_SKILLS>([]);
   const [customSkillInput, setCustomSkillInput] = useState('');
   const [activeSkillsQueue, setActiveSkillsQueue] = useState<string[]>(['antislop-ui']);
   const [injectionSuccessMsg, setInjectionSuccessMsg] = useState<string | null>(null);
@@ -98,7 +98,7 @@ export const NodeDetailSidebar: React.FC = () => {
     fetch('http://127.0.0.1:1425/api/skills/list')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data && Array.isArray(data.skills) && data.skills.length > 0) {
+        if (data && Array.isArray(data.skills)) {
           setLocalSkills(data.skills);
         }
       })
@@ -674,9 +674,11 @@ export const NodeDetailSidebar: React.FC = () => {
           </div>
         )}
 
-        {/* Quick Suggestion Chips from Installed Local Skills */}
+        {/* Installed Local Skills Only (strictly from ~/.pi/agent/skills) */}
         <div className="space-y-1">
-          <div className="text-[10px] font-mono text-[#94a3b8]">Quick Suggest (Local Skills & Top Repos):</div>
+          <div className="text-[10px] font-mono text-[#94a3b8]">
+            Installed Local Skills ({localSkills.length}):
+          </div>
           <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
             {localSkills.map((skill) => {
               const isQueued = activeSkillsQueue.includes(skill.id);
@@ -701,26 +703,6 @@ export const NodeDetailSidebar: React.FC = () => {
                 </button>
               );
             })}
-            
-            {/* Quick GitHub Repos Suggestions */}
-            <button
-              onClick={() => {
-                const tag = 'github:PatrickJS/awesome-cursorrules';
-                if (activeSkillsQueue.includes(tag)) {
-                  handleRemoveSkillFromQueue(tag);
-                } else {
-                  setActiveSkillsQueue((prev) => [...prev, tag]);
-                }
-              }}
-              className={`text-[9px] font-mono px-2 py-0.5 rounded border flex items-center space-x-1 transition-all ${
-                activeSkillsQueue.includes('github:PatrickJS/awesome-cursorrules')
-                  ? 'bg-[#0f172a] text-[#38bdf8] border-[#38bdf8] font-bold'
-                  : 'bg-[#0f172a]/5 text-[#0f172a] border-[#cbd5e1] hover:border-[#38bdf8] hover:text-[#0284c7]'
-              }`}
-            >
-              <GitBranch className="w-2.5 h-2.5 text-[#0284c7]" />
-              <span>+ awesome-cursorrules</span>
-            </button>
           </div>
         </div>
 
