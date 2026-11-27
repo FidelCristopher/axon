@@ -77,10 +77,15 @@ export const NodeDetailSidebar: React.FC = () => {
   const [isWorktreeBusy, setIsWorktreeBusy] = useState(false);
 
   const resolveActiveRepoPath = () => {
+    const primaryPath = entities.find((e) => e.worktreePath)?.worktreePath;
+    if (primaryPath && primaryPath !== '/home/fidel' && primaryPath !== '/mnt/c/Users/Pongo') {
+      return primaryPath;
+    }
     const combined = entities.map((e) => `${e.name} ${e.worktree}`).join(' ').toLowerCase();
     if (combined.includes('matcha')) return '/mnt/c/Users/Pongo/matcha-showcase';
     if (combined.includes('axon')) return '/mnt/c/Users/Pongo/axon';
-    return '/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning';
+    if (combined.includes('chinese') || combined.includes('hanzi')) return '/mnt/c/Users/Pongo/AndroidStudioProjects/ChineseLearning';
+    return '/mnt/c/Users/Pongo';
   };
 
   // Flexible Skill Injection States (live-loaded from C:\Users\Pongo\Axon-Studio\pi-data\skills)

@@ -199,7 +199,7 @@ interface AxonState {
   compactEntityMemory: (id: string) => void;
   compactSelectedEntities: () => void;
   compactAllEntities: () => void;
-  syncRealWorktrees: (repoPath: string) => Promise<void>;
+  syncRealWorktrees: (repoPath: string, expectedSessionId: string) => Promise<void>;
   dispatchTaskToEntity: (id: string, prompt: string) => void;
 }
 
@@ -323,7 +323,7 @@ export const useAxonStore = create<AxonState>((set, get) => {
           ? '/mnt/c/Users/Pongo/axon'
           : '';
       if (repoPath) {
-        get().syncRealWorktrees(repoPath);
+        get().syncRealWorktrees(repoPath, session.id);
       }
     },
 
@@ -445,20 +445,33 @@ export const useAxonStore = create<AxonState>((set, get) => {
       }));
     },
 
-    syncRealWorktrees: async (repoPath: string) => {
+    syncRealWorktrees: async (repoPath: string, expectedSessionId: string) => {
       try {
         const res = await fetch(
           `http://127.0.0.1:1425/api/worktrees?repoPath=${encodeURIComponent(repoPath)}`
         );
         if (!res.ok) return;
         const data = await res.json();
+
+        // Guard against async race condition: abort if user already switched to a different session!
+        if (get().activeProjectId !== expectedSessionId) return;
+
         const wts: Array<{ path: string; branch: string; isMain: boolean }> = Array.isArray(data?.worktrees)
           ? data.worktrees
           : [];
+
+        // Only attach secondary worktree branches when THIS session is the primary/main repo itself
+        // (not when the session is already a secondary worktree like halohanzi-part1/part2/assets)
+        const mainWt = wts.find((w) => w.isMain);
+        if (!mainWt || mainWt.path.replace(/\/+$/, '') !== repoPath.replace(/\/+$/, '')) {
+          return;
+        }
+
         const secondary = wts.filter((w) => !w.isMain);
         if (secondary.length === 0) return;
 
         set((state) => {
+          if (state.activeProjectId !== expectedSessionId) return state;
           const hub = state.entities.find((e) => e.type === 'hub') || state.entities[0];
           if (!hub) return state;
 
