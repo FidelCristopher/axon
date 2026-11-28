@@ -5,6 +5,7 @@ const { spawn } = require("child_process");
 
 const PTY_HOST_SCRIPT = path.join(__dirname, "ptyHost.py");
 const PI_BIN = "/home/fidel/.pi/agent/bin/pi";
+const SESSIONS_ROOT = "/home/fidel/.pi/agent/sessions";
 const SESSIONS_DIR = "/home/fidel/.pi/agent/sessions/--home-fidel--";
 const MAX_BUFFER_BYTES = 2 * 1024 * 1024; // 2 MB rolling ANSI buffer for deep scrollback across Ctrl+R reloads
 
@@ -58,15 +59,57 @@ function sendWsText(socket, text) {
   }
 }
 
-function resolveSessionPath(sessionParam) {
-  if (!sessionParam || !fs.existsSync(SESSIONS_DIR)) return null;
-  const clean = path.basename(String(sessionParam).trim());
-  const direct = clean.endsWith(".jsonl") ? path.join(SESSIONS_DIR, clean) : null;
-  if (direct && fs.existsSync(direct)) return direct;
+function resolveSessionPath(sessionParam, cwd) {
+  if (!fs.existsSync(SESSIONS_ROOT)) return null;
+  const raw = sessionParam ? String(sessionParam).trim() : "";
+  if (raw && path.isAbsolute(raw) && fs.existsSync(raw) && raw.endsWith(".jsonl")) {
+    return raw;
+  }
+  const clean = raw ? path.basename(raw) : "";
 
-  const files = fs.readdirSync(SESSIONS_DIR).filter((f) => f.endsWith(".jsonl"));
-  const found = files.find((f) => f === clean || f.includes(clean));
-  return found ? path.join(SESSIONS_DIR, found) : null;
+  const dirs = [];
+  if (fs.existsSync(SESSIONS_DIR)) dirs.push(SESSIONS_DIR);
+  try {
+    for (const entry of fs.readdirSync(SESSIONS_ROOT, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name === "archive") continue;
+      const fullDir = path.join(SESSIONS_ROOT, entry.name);
+      if (fullDir !== SESSIONS_DIR) dirs.push(fullDir);
+    }
+  } catch {}
+
+  if (clean) {
+    for (const dir of dirs) {
+      try {
+        const direct = clean.endsWith(".jsonl") ? path.join(dir, clean) : null;
+        if (direct && fs.existsSync(direct)) return direct;
+        const files = fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl"));
+        const found = files.find((f) => f === clean || f.includes(clean));
+        if (found) return path.join(dir, found);
+      } catch {}
+    }
+  }
+
+  // Fallback for Git worktree branches (e.g. wt-feat-belajar-page):
+  // Automatically resume the newest .jsonl inside that worktree's own Pi session directory!
+  if (cwd && cwd !== "/home/fidel" && cwd !== "/mnt/c/Users/Pongo") {
+    const encodedDirName = `--${cwd.replace(/^\/+/, "").replace(/[\\/]/g, "-")}--`;
+    const worktreeSessionDir = path.join(SESSIONS_ROOT, encodedDirName);
+    if (fs.existsSync(worktreeSessionDir)) {
+      try {
+        const files = fs
+          .readdirSync(worktreeSessionDir)
+          .filter((f) => f.endsWith(".jsonl"))
+          .map((f) => {
+            const full = path.join(worktreeSessionDir, f);
+            return { full, mtime: fs.statSync(full).mtimeMs };
+          })
+          .sort((a, b) => b.mtime - a.mtime);
+        if (files.length > 0) return files[0].full;
+      } catch {}
+    }
+  }
+
+  return null;
 }
 
 function getOrSpawnPty({ nodeId, cwd, sessionFile, cols = 120, rows = 34, restart = false }) {
@@ -83,7 +126,7 @@ function getOrSpawnPty({ nodeId, cwd, sessionFile, cols = 120, rows = 34, restar
   }
 
   const safeCwd = cwd && fs.existsSync(cwd) ? cwd : "/mnt/c/Users/Pongo/axon";
-  const resolvedSession = resolveSessionPath(sessionFile);
+  const resolvedSession = resolveSessionPath(sessionFile, safeCwd);
 
   const cmdArgs = [PTY_HOST_SCRIPT, safeCwd, String(cols), String(rows), PI_BIN];
   if (resolvedSession) {
@@ -320,10 +363,101 @@ function attachPtyWebSocket(httpServer) {
   });
 }
 
+function listActivePtys() {
+  const list = [];
+  for (const [nodeId, entry] of ptySessions.entries()) {
+    const alive = Boolean(entry.proc && !entry.proc.killed && entry.proc.exitCode === null);
+    list.push({
+      nodeId,
+      cwd: entry.cwd,
+      sessionFile: entry.sessionFile ? path.basename(entry.sessionFile) : null,
+      alive,
+      clients: entry.clients.size,
+      startedAt: entry.startedAt,
+    });
+  }
+  return list;
+}
+
+function notifyPtyTarget({ target, message }) {
+  const cleanTarget = String(target || "").toLowerCase().trim();
+  const cleanMsg = String(message || "").trim();
+  if (!cleanTarget || !cleanMsg) {
+    return { success: false, error: "target and message are required", activePtys: listActivePtys() };
+  }
+
+  const aliasMatchers = {
+    dev1: ["belajar", "part1", "dev1", "dev-1"],
+    part1: ["belajar", "part1", "dev1"],
+    dev2: ["cerita", "part2", "dev2", "dev-2"],
+    part2: ["cerita", "part2", "dev2"],
+    designer: ["asset", "designer", "design"],
+    assets: ["asset", "designer"],
+    qa: ["qa", "main-", "chineselearning"],
+    main: ["main-", "hub-"],
+  };
+
+  const keywords = aliasMatchers[cleanTarget] || [cleanTarget];
+  let matchedEntry = null;
+
+  for (const [, entry] of ptySessions.entries()) {
+    if (!entry.proc || entry.proc.killed || entry.proc.exitCode !== null) continue;
+    const haystack = `${entry.nodeId} ${entry.cwd} ${entry.sessionFile || ""}`.toLowerCase();
+    if (keywords.some((kw) => haystack.includes(kw))) {
+      matchedEntry = entry;
+      break;
+    }
+  }
+
+  if (!matchedEntry) {
+    return {
+      success: false,
+      error: `Target PTY "${target}" is not running in Axon Studio. Open the "${target}" branch terminal in Axon first!`,
+      activePtys: listActivePtys(),
+    };
+  }
+
+  if (!matchedEntry.proc.stdin || !matchedEntry.proc.stdin.writable) {
+    return {
+      success: false,
+      error: `Matched PTY [${matchedEntry.nodeId}] stdin is not writable.`,
+      activePtys: listActivePtys(),
+    };
+  }
+
+  try {
+    // Write message text cleanly, then send Enter (\r) after 120ms so Pi TUI submits reliably
+    matchedEntry.proc.stdin.write(cleanMsg);
+    setTimeout(() => {
+      try {
+        if (matchedEntry.proc && matchedEntry.proc.stdin && matchedEntry.proc.stdin.writable) {
+          matchedEntry.proc.stdin.write("\r");
+        }
+      } catch {}
+    }, 120);
+
+    console.log(`[Axon Native PTY] notify_role -> [${matchedEntry.nodeId}] (${matchedEntry.cwd}): ${cleanMsg.slice(0, 80)}`);
+    return {
+      success: true,
+      matchedNodeId: matchedEntry.nodeId,
+      cwd: matchedEntry.cwd,
+      sessionFile: matchedEntry.sessionFile ? path.basename(matchedEntry.sessionFile) : null,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err.message,
+      activePtys: listActivePtys(),
+    };
+  }
+}
+
 module.exports = {
   attachPtyWebSocket,
   killPtySession,
   sendInputToPty,
   setPtyStatusCallback,
+  listActivePtys,
+  notifyPtyTarget,
   getActivePtyCount: () => ptySessions.size,
 };

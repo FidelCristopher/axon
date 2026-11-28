@@ -9,6 +9,8 @@ const {
   killPtySession,
   sendInputToPty,
   setPtyStatusCallback,
+  listActivePtys,
+  notifyPtyTarget,
   getActivePtyCount,
 } = require("./ptyManager.cjs");
 const PI_CURRENT_VERSION = fs.existsSync("/home/fidel/.pi/agent/install/current-version")
@@ -1633,6 +1635,27 @@ const server = http.createServer(async (req, res) => {
       const killed = killPtySession(nodeId);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ success: true, killed, activePtys: getActivePtyCount() }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // 6e. List all running Native Pi PTYs (for agent swarming discovery & debugging)
+  if (url.pathname === "/api/pty/list" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ptys: listActivePtys() }));
+    return;
+  }
+
+  // 6f. Agent Swarming: Dispatch instruction directly to a target Native Pi PTY (notify_role)
+  if (url.pathname === "/api/pty/notify" && req.method === "POST") {
+    try {
+      const { target, message } = await readJsonBody(req);
+      const outcome = notifyPtyTarget({ target, message });
+      res.writeHead(outcome.success ? 200 : 404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(outcome));
     } catch (err) {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ success: false, error: err.message }));
