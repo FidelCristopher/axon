@@ -12,7 +12,8 @@ import {
   SlidersHorizontal,
   Terminal,
   X,
-  Check
+  Check,
+  Edit3
 } from 'lucide-react';
 
 /**
@@ -61,6 +62,7 @@ export const NodeDetailSidebar: React.FC = () => {
     selectAllSessions,
     removeEntity,
     addEntity,
+    renameEntity,
     applySkillsToSelected,
     addSkillToEntity,
     removeSkillFromEntity,
@@ -105,9 +107,11 @@ export const NodeDetailSidebar: React.FC = () => {
       .catch(() => {});
   }, []);
 
-  // Per-session inline skill input state
+  // Per-session inline skill input & branch rename states
   const [addingSkillToSessionId, setAddingSkillToSessionId] = useState<string | null>(null);
   const [inlineSkillText, setInlineSkillText] = useState('');
+  const [renamingBranchId, setRenamingBranchId] = useState<string | null>(null);
+  const [renamingBranchText, setRenamingBranchText] = useState('');
 
   // Live detection of GitHub link in the input
   const detectedGitHub = parseGitHubSkillUrl(customSkillInput);
@@ -439,20 +443,56 @@ export const NodeDetailSidebar: React.FC = () => {
                   ) : (
                     <Square className="w-3.5 h-3.5 text-[#94a3b8] shrink-0" />
                   )}
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedEntityId(session.id);
-                    }}
-                    className={`text-xs font-semibold truncate ${
-                      isFocusedInGraph ? 'text-[#e11d48] underline' : 'text-[#0f172a]'
-                    }`}
-                  >
-                    {session.name}
-                  </span>
+                  {renamingBranchId === session.id ? (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (renamingBranchText.trim()) {
+                          renameEntity(session.id, renamingBranchText);
+                        }
+                        setRenamingBranchId(null);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center space-x-1 flex-1 min-w-0"
+                    >
+                      <input
+                        type="text"
+                        value={renamingBranchText}
+                        onChange={(e) => setRenamingBranchText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            e.stopPropagation();
+                            setRenamingBranchId(null);
+                          }
+                        }}
+                        className="flex-1 min-w-0 bg-[#f8fafc] border border-[#e11d48] rounded px-1.5 py-0.5 text-xs font-semibold text-[#0f172a] focus:outline-none"
+                        autoFocus
+                      />
+                      <button
+                        type="submit"
+                        className="p-0.5 rounded bg-[#e11d48] text-white shrink-0"
+                        title="Save name"
+                      >
+                        <Check className="w-3 h-3" />
+                      </button>
+                    </form>
+                  ) : (
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedEntityId(session.id);
+                      }}
+                      className={`text-xs font-semibold truncate ${
+                        isFocusedInGraph ? 'text-[#e11d48] underline' : 'text-[#0f172a]'
+                      }`}
+                    >
+                      {session.name}
+                    </span>
+                  )}
                 </div>
 
-                <div className="flex items-center space-x-1.5">
+                <div className="flex items-center space-x-1">
                   <span
                     className={`text-[9px] font-mono px-1.5 py-0.2 rounded border font-semibold ${
                       isWorking
@@ -464,6 +504,17 @@ export const NodeDetailSidebar: React.FC = () => {
                   >
                     [{session.status}]
                   </span>
+
+                  <button
+                    onClick={() => {
+                      setRenamingBranchId(session.id);
+                      setRenamingBranchText(session.name);
+                    }}
+                    className="p-1 rounded hover:bg-[#f1f5f9] text-[#64748b] hover:text-[#0f172a] transition-colors"
+                    title="Rename branch label"
+                  >
+                    <Edit3 className="w-3 h-3" />
+                  </button>
 
                   <button
                     onClick={() => {

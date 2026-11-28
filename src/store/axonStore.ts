@@ -191,6 +191,7 @@ interface AxonState {
   setActiveViewTab: (tab: 'graph' | 'split' | 'workbench') => void;
   setIsTerminalModalOpen: (open: boolean) => void;
   addEntity: (name: string, type: GraphEntity['type'], worktree: string, worktreePath?: string) => void;
+  renameEntity: (id: string, newName: string) => void;
   removeEntity: (id: string) => void;
   updateEntityStatus: (id: string, status: NodeStatus, message?: string) => void;
   applySkillsToSelected: (skillIds: string[]) => void;
@@ -269,10 +270,17 @@ export const useAxonStore = create<AxonState>((set, get) => {
           summary: `Session hub for ${session.name}`,
         };
 
+        let savedLabels: Record<string, string> = {};
+        try {
+          const raw = localStorage.getItem('axon_branch_labels');
+          if (raw) savedLabels = JSON.parse(raw);
+        } catch {}
+
+        const mainId = `main-${session.id}`;
         const mainBranch: GraphEntity = {
-          id: `main-${session.id}`,
+          id: mainId,
           uuid: session.id,
-          name: 'Main Session',
+          name: savedLabels[mainId] || 'Main Session',
           type: 'dev',
           worktree: 'main',
           worktreePath: sessionCwd,
@@ -395,6 +403,33 @@ export const useAxonStore = create<AxonState>((set, get) => {
       }));
     },
 
+    renameEntity: (id, newName) => {
+      const trimmed = newName.trim();
+      if (!trimmed) return;
+      const target = get().entities.find((e) => e.id === id);
+      try {
+        const raw = localStorage.getItem('axon_branch_labels');
+        const map: Record<string, string> = raw ? JSON.parse(raw) : {};
+        map[id] = trimmed;
+        if (target?.worktree) map[`wt:${target.worktree}`] = trimmed;
+        localStorage.setItem('axon_branch_labels', JSON.stringify(map));
+      } catch {}
+
+      set((state) => {
+        const nextEntities = state.entities.map((e) =>
+          e.id === id ? { ...e, name: trimmed } : e
+        );
+        const topologies = { ...state.sessionTopologies };
+        if (state.activeProjectId && topologies[state.activeProjectId]) {
+          topologies[state.activeProjectId] = {
+            ...topologies[state.activeProjectId],
+            entities: nextEntities,
+          };
+        }
+        return { entities: nextEntities, sessionTopologies: topologies };
+      });
+    },
+
     removeEntity: (id) => {
       const hub = get().entities.find((e) => e.type === 'hub');
       if (hub && hub.id === id) return;
@@ -479,6 +514,12 @@ export const useAxonStore = create<AxonState>((set, get) => {
           const nextRels = [...state.relationships];
           const nextSelected = [...state.selectedSessionIds];
 
+          let savedLabels: Record<string, string> = {};
+          try {
+            const raw = localStorage.getItem('axon_branch_labels');
+            if (raw) savedLabels = JSON.parse(raw);
+          } catch {}
+
           for (const wt of secondary) {
             const exists = nextEntities.some(
               (e) =>
@@ -488,10 +529,11 @@ export const useAxonStore = create<AxonState>((set, get) => {
             if (exists) continue;
 
             const newId = `wt-${wt.branch.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+            const customLabel = savedLabels[newId] || savedLabels[`wt:${wt.branch}`] || wt.branch;
             nextEntities.push({
               id: newId,
               uuid: newId,
-              name: wt.branch,
+              name: customLabel,
               type: 'dev',
               worktree: wt.branch,
               worktreePath: wt.path,
