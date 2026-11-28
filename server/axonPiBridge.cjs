@@ -1383,7 +1383,14 @@ const server = http.createServer(async (req, res) => {
           const wtMatch = blk.match(/^worktree\s+(.+)$/m);
           const brMatch = blk.match(/^branch\s+refs\/heads\/(.+)$/m);
           if (wtMatch) {
-            const wtPath = wtMatch[1].trim();
+            let wtPath = wtMatch[1].trim();
+            // Fix Windows-created git worktrees reported by WSL git as ".../.git/worktrees/<name>/C:/Users/..."
+            const winEmbedded = wtPath.match(/([A-Za-z]):[\\/](.+)$/);
+            if (winEmbedded && !fs.existsSync(wtPath)) {
+              const drive = winEmbedded[1].toLowerCase();
+              const rest = winEmbedded[2].replace(/\\/g, "/");
+              wtPath = `/mnt/${drive}/${rest}`;
+            }
             const branch = brMatch ? brMatch[1].trim() : path.basename(wtPath);
             worktrees.push({
               path: wtPath,
